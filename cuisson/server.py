@@ -4,7 +4,7 @@ routes = web.RouteTableDef()
 
 @routes.get('/')
 async def home(request):
-    return web.Response(text="py-kitchen is running.")
+    return web.Response(text="py-kitchen is running v0.0.1.")
 
 
 def start_server():
