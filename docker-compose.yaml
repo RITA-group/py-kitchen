@@ -1,0 +1,10 @@
+version: "3.7"
+
+services:
+
+  watermark:
+    container_name: kitchen
+    build: ./
+    image: kitchen:latest
+    ports:
+      - "8080:8080"
