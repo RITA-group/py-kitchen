@@ -25,5 +25,5 @@ WORKDIR /cuisson
 ENV PYTHONUNBUFFERED 1
 EXPOSE 8080
 
-CMD ["python3", "server.py"]
+CMD ["python3", "prod_server.py"]
 
