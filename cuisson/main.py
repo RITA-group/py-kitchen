@@ -1,15 +1,16 @@
 from typing import Optional
-
+import logging
 from fastapi import FastAPI
-
+logger = logging.getLogger(__name__)
 app = FastAPI()
 
 
 @app.get("/")
 def read_root():
-    return {"Hello": "World"}
+    return {"py-kitchen": "test"}
 
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Optional[str] = None):
-    return {"item_id": item_id, "q": q}
+@app.post("/triggers/user_update/")
+def user_update(update: dict):
+    logger.info(update)
+    return {'status': 'ok'}
