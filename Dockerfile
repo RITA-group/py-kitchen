@@ -7,8 +7,6 @@ RUN apk add --no-cache \
     pip3 install --upgrade pip
 
 
-# At this point heavy lifting is done and everything below will build fast.
-
 # Copy python requirements file
 COPY requirements.txt /tmp/requirements.txt
 RUN pip3 install -r /tmp/requirements.txt
@@ -16,14 +14,19 @@ RUN pip3 install -r /tmp/requirements.txt
 # Remove pip cache. We are not going to need it anymore
 RUN rm -r /root/.cache
 
-# Add our application files
-#RUN mkdir /tmp/cuisson
-#RUN mkdir /cuisson
-COPY ./cuisson /cuisson
-WORKDIR /cuisson
-
 ENV PYTHONUNBUFFERED 1
+
+# Setup cloud run credentials
+ENV KEY_DIR='/keys'
+RUN mkdir -p ${KEY_DIR}
+ENV GOOGLE_APPLICATION_CREDENTIALS="${KEY_DIR}/service_account_key.json"
+ARG _SERVICE_ACCOUNT_KEY
+RUN echo ${_SERVICE_ACCOUNT_KEY} | base64 -d > ${GOOGLE_APPLICATION_CREDENTIALS}
+
+# Add our application files
+COPY ./cuisson /code
+WORKDIR /code
+
 EXPOSE 8080
 
 CMD ["python3", "prod_server.py"]
-
