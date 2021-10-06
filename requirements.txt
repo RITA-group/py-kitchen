@@ -2,3 +2,4 @@ fastapi==0.68.1
 uvicorn==0.15.0
 loguru==0.5.3
 google-cloud-firestore==2.3.4
+fireo==1.4.5
