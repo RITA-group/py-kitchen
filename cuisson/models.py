@@ -1,8 +1,11 @@
+from typing import Optional
 from google.cloud import firestore
 from pydantic import BaseModel
-from pprint import pprint
+from dataclasses import dataclass
+from google.cloud.firestore import DocumentReference
+from google.cloud.firestore import DocumentSnapshot
 
-db = firestore.Client()
+client = firestore.Client()
 
 """
 firestore.DocumentSnapshot
@@ -19,70 +22,73 @@ class NotFound(Exception):
     pass
 
 
-class FirebaseMixin:
+@dataclass
+class FirebaseCollections:
+    profiles: callable
+    rooms: callable
+    attendees: callable
+
+
+DB = FirebaseCollections(
+    profiles=client.collection('profiles'),
+    rooms=client.collection('rooms'),
+    attendees=client.collection('attendees'),
+)
+
+
+class Firebase(BaseModel):
     id: str
 
-    @staticmethod
-    def collection():
-        """
-        Specific Firestore root collection
-        """
-        raise NotImplemented
-
-    @staticmethod
-    def convert_fields(data: dict) -> dict:
-        """
-        Convert Firestore formats to python
-        """
-        return {}
-
     @classmethod
-    def from_snapshot(cls, doc: firestore.DocumentSnapshot):
-        data = doc.to_dict()
-        data['id'] = str(doc.id)
-        data.update(cls.convert_fields(data))
+    def from_snapshot(cls, doc: DocumentSnapshot):
+        data = {'id': doc.id}
+        for key, value in doc.to_dict().items():
+            if isinstance(value, DocumentReference):
+                value = value.id
+            data[key] = value
         return cls(**data)
 
-    def delete(self):
-        self.collection().document(self.id).delete()
-
     @classmethod
-    def from_id(cls, obj_id: str):
-        doc = cls.collection().document(obj_id).get()
+    def from_id(cls, obj_type: str, obj_id: str):
+        doc = client.document(f'{obj_type}/{obj_id}').get()
         if not doc.exists:
             raise NotFound()
         return cls.from_snapshot(doc)
 
 
-class Room(FirebaseMixin, BaseModel):
+class Profile(Firebase):
+    display_name: str
+    notification_token: Optional[str]
+
+    @classmethod
+    def save_data(
+            cls,
+            ref: DocumentReference,
+            name: str,
+            notification_token: Optional[str] = None
+    ):
+        ref.set({
+            'display_name': name,
+            'notification_token': notification_token,
+        })
+
+
+class Room(Firebase):
     name: str
-    owner: str
-    token: str
+    owner_id: str
 
-    @staticmethod
-    def collection():
-        return db.collection(u'room')
+    @classmethod
+    def save_data(
+            cls,
+            ref: DocumentReference,
+            name: str,
+            owner_id: str
+    ):
+        ref.set({
+            'name': name,
+            'owner_id': client.document(f'profile/{owner_id}'),
+        })
 
-    @staticmethod
-    def convert_fields(data: dict) -> dict:
-        return {
-            'owner': data['owner'].path,
-        }
 
-
-class User(FirebaseMixin, BaseModel):
+class Attendee(Firebase):
     name: str
-    answer_count: int
-    hand_up: bool
-    is_answering: bool
-    room: str
-
-    @staticmethod
-    def collection():
-        return db.collection(u'user')
-
-    @staticmethod
-    def convert_fields(data: dict) -> dict:
-        return {
-            'room': data['room'].path,
-        }
