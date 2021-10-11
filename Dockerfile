@@ -5,7 +5,8 @@ RUN apk add --no-cache \
     bash \
     linux-headers
 
-#RUN pip3 install grpcio
+# This take a long time so we cache it.
+RUN pip3 install grpcio
 
 # Setup cloud run credentials
 ENV GOOGLE_APPLICATION_CREDENTIALS="/keys/service_account_key.json"
