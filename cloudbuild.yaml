@@ -16,4 +16,4 @@ availableSecrets:
       env: '_SERVICE_ACCOUNT_KEY'
 images:
 - 'gcr.io/$PROJECT_ID/$_APP_NAME'
-timeout: 1500s
+timeout: 3600s
