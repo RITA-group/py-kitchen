@@ -9,6 +9,7 @@ services:
         - _SERVICE_ACCOUNT_KEY
     image: kitchen:latest
     volumes:
+      - ${LOCAL_SERVICE_ACCOUNT_KEY}:/keys/service_account_key.json
       - ./cuisson:/code
     #entrypoint: /bin/bash
     #command: -c "uvicorn main:app --host 0.0.0.0 --port 8080 --reload"

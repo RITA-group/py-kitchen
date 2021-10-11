@@ -5,6 +5,7 @@ if __name__ == '__main__':
     print('Checking envs:')
     path = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
     print('GOOGLE_APPLICATION_CREDENTIALS:', path)
+    print()
 
     print('File content:')
     with open(path, 'r') as f:
