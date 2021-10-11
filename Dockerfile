@@ -3,8 +3,12 @@ FROM python:3.9-alpine
 RUN apk add --no-cache \
     build-base \
     bash \
-    linux-headers && \
-    pip3 install --upgrade pip
+    linux-headers
+
+RUN pip3 install --upgrade pip
+
+# Takes long time to install so we preinstall before requirements
+RUN pip3 install grpcio
 
 
 # Copy python requirements file
