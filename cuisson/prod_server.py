@@ -45,6 +45,7 @@ if __name__ == '__main__':
         Config(
             "main:app",
             host="0.0.0.0",
+            root_path='/api/v1',
             port=8080,
             log_level=LOG_LEVEL,
         ),

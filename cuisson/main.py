@@ -80,7 +80,7 @@ def read_root():
     return {"py-kitchen": "test test"}
 
 
-@app.get("/api/rooms/")
+@app.get("/rooms/")
 def list_rooms(
         profile: UserProfile = Depends(UserProfile(test_only_uid)),
 ) -> schemas.PaginationContainer:
@@ -92,7 +92,7 @@ def list_rooms(
     return container
 
 
-@app.post("/api/rooms/")
+@app.post("/rooms/")
 def create_room(
         room_request: schemas.Room,
         profile: models.Profile = Depends(UserProfile(test_only_uid)),
@@ -102,7 +102,7 @@ def create_room(
     return models.Room.from_snapshot(room_ref.get())
 
 
-@app.get("/api/rooms/{room_id}")
+@app.get("/rooms/{room_id}")
 def get_room(
         room_id: str,
         profile: UserProfile = Depends(UserProfile(test_only_uid)),
@@ -117,7 +117,7 @@ def get_room(
     return room
 
 
-@app.delete("/api/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
+@app.delete("/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_room(
         room_id: str,
         profile: models.Profile = Depends(UserProfile(test_only_uid)),
@@ -138,7 +138,7 @@ def delete_room(
     return
 
 
-#@app.get("/api/rooms/{room_id}/attendees/")
+#@app.get("/rooms/{room_id}/attendees/")
 #def list_attendees(
 #        room_id: str,
 #        profile: UserProfile = Depends(UserProfile(test_only_uid)),
@@ -158,14 +158,14 @@ def delete_room(
 #    )
 
 
-@app.get("/api/profile")
+@app.get("/profile")
 def get_profile(
         profile: models.Profile = Depends(UserProfile()),
 ):
     return profile
 
 
-@app.patch("/api/profile")
+@app.patch("/profile")
 def update_profile(
         profile_request: schemas.Profile,
         profile: models.Profile = Depends(UserProfile()),
