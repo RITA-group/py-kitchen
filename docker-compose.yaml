@@ -10,7 +10,7 @@ services:
     image: kitchen:latest
     volumes:
       - ./cuisson:/code
-    entrypoint: /bin/bash
-    command: -c "uvicorn main:app --host 0.0.0.0 --port 8080 --reload"
+    #entrypoint: /bin/bash
+    #command: -c "uvicorn main:app --host 0.0.0.0 --port 8080 --reload"
     ports:
       - "8080:8080"
