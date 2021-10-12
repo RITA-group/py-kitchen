@@ -1,15 +1,31 @@
-from typing import Optional
 import logging
-from fastapi import FastAPI, status, HTTPException, Depends, Request
+from typing import Optional
+from uvicorn import Config, Server
 from fastapi.routing import APIRouter
-import models
-import schemas
+from fastapi import FastAPI, status, HTTPException, Depends, Request
 from firebase_admin import auth, initialize_app
+import models, schemas, settings
 
 initialize_app()
 logger = logging.getLogger(__name__)
-app = FastAPI()
+
 app_router = APIRouter()
+
+app = FastAPI(
+    title='RITA API',
+    description=settings.description,
+    version=settings.version,
+    openapi_url=settings.prefix + '/openapi.json',
+    docs_url=settings.prefix + '/',
+    redoc_url=settings.prefix + '/redoc',
+)
+
+
+@app.middleware('http')
+async def header_settings(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Cache-Control"] = 'no-store'
+    return response
 
 
 def uid_from_authorization_token(request: Request) -> str:
@@ -33,17 +49,14 @@ def uid_from_authorization_token(request: Request) -> str:
     return decoded_token['uid']
 
 
-test_uid = 'testtesttest'
-
-
 def test_only_uid(request: Request) -> str:
-    return test_uid
+    return settings.test_uid
 
 
 def test_user_info(uid: str) -> auth.UserRecord:
-    if uid != test_uid:
+    if uid != settings.test_uid:
         raise RuntimeError(
-            f'Expected test uid {test_uid} != {uid}'
+            f'Expected test uid {settings.test_uid} != {uid}'
         )
 
     return auth.UserRecord({
@@ -180,3 +193,22 @@ def update_profile(
     ref.update(profile_request.dict())
 
     return models.Profile.from_snapshot(ref.get())
+
+
+app.include_router(
+    app_router,
+    prefix=settings.prefix,
+)
+
+
+if __name__ == '__main__':
+
+    server = Server(
+        Config(
+            app,
+            host="localhost",
+            port=8080,
+            log_level='debug',
+        ),
+    )
+    server.run()
