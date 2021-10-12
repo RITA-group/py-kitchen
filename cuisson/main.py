@@ -99,9 +99,13 @@ def create_room(
         room_request: schemas.Room,
         profile: models.Profile = Depends(UserProfile(test_only_uid)),
 ):
-    room_ref = models.DB.rooms.document()
-    models.Room.save_data(room_ref, room_request.name, profile.id)
-    return models.Room.from_snapshot(room_ref.get())
+    room_ref = models.client.collection('rooms')
+    room = room_ref.document()
+    room.set({
+        'name': room_request,
+        'owner_id': models.client.document(f'profile/{profile.id}'),
+    })
+    return models.Room.from_snapshot(room.get())
 
 
 @app_router.get("/rooms/{room_id}")
