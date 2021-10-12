@@ -3,6 +3,7 @@ from typing import Optional
 from uvicorn import Config, Server
 from fastapi.routing import APIRouter
 from fastapi import FastAPI, status, HTTPException, Depends, Request
+from fastapi.responses import Response
 from firebase_admin import auth, initialize_app
 import models, schemas, settings
 
@@ -154,7 +155,7 @@ def delete_room(
             detail=f"Room {room_id} doesn't belong to current user."
         )
     models.DB.rooms.document(room_id).delete()
-    return
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 #@app.get("/rooms/{room_id}/attendees/")
