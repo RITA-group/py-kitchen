@@ -1,6 +1,7 @@
 from typing import Optional
 import logging
 from fastapi import FastAPI, status, HTTPException, Depends, Request
+from fastapi.routing import APIRouter
 import models
 import schemas
 from firebase_admin import auth, initialize_app
@@ -8,6 +9,7 @@ from firebase_admin import auth, initialize_app
 initialize_app()
 logger = logging.getLogger(__name__)
 app = FastAPI()
+app_router = APIRouter()
 
 
 def uid_from_authorization_token(request: Request) -> str:
@@ -75,12 +77,12 @@ class UserProfile:
         return models.Profile.from_snapshot(snapshot)
 
 
-@app.get("/")
-def read_root():
-    return {"py-kitchen": "test test"}
+@app_router.get("/health")
+def health_check():
+    return {"status": "ok"}
 
 
-@app.get("/rooms/")
+@app_router.get("/rooms/")
 def list_rooms(
         profile: UserProfile = Depends(UserProfile(test_only_uid)),
 ) -> schemas.PaginationContainer:
@@ -92,7 +94,7 @@ def list_rooms(
     return container
 
 
-@app.post("/rooms/")
+@app_router.post("/rooms/")
 def create_room(
         room_request: schemas.Room,
         profile: models.Profile = Depends(UserProfile(test_only_uid)),
@@ -102,7 +104,7 @@ def create_room(
     return models.Room.from_snapshot(room_ref.get())
 
 
-@app.get("/rooms/{room_id}")
+@app_router.get("/rooms/{room_id}")
 def get_room(
         room_id: str,
         profile: UserProfile = Depends(UserProfile(test_only_uid)),
@@ -117,7 +119,7 @@ def get_room(
     return room
 
 
-@app.delete("/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
+@app_router.delete("/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_room(
         room_id: str,
         profile: models.Profile = Depends(UserProfile(test_only_uid)),
@@ -158,14 +160,14 @@ def delete_room(
 #    )
 
 
-@app.get("/profile")
+@app_router.get("/profile")
 def get_profile(
         profile: models.Profile = Depends(UserProfile()),
 ):
     return profile
 
 
-@app.patch("/profile")
+@app_router.patch("/profile")
 def update_profile(
         profile_request: schemas.Profile,
         profile: models.Profile = Depends(UserProfile()),
