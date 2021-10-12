@@ -99,7 +99,7 @@ def health_check():
 def list_rooms(
         profile: UserProfile = Depends(UserProfile(test_only_uid)),
 ) -> schemas.PaginationContainer:
-    query = models.client.collection('rooms').get()
+    query = models.client.collection('rooms').stream()
     rooms = [models.Room.from_snapshot(doc) for doc in query]
     container = schemas.PaginationContainer(
         result=rooms,
@@ -115,7 +115,7 @@ def create_room(
     room_ref = models.client.collection('rooms')
     room = room_ref.document()
     room.set({
-        'name': room_request,
+        'name': room_request.name,
         'owner_id': models.client.document(f'profile/{profile.id}'),
     })
     return models.Room.from_snapshot(room.get())
