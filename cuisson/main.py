@@ -1,8 +1,9 @@
 import logging
 from typing import Optional
 from uvicorn import Config, Server
+from datetime import datetime
 from fastapi.routing import APIRouter
-from fastapi import FastAPI, status, HTTPException, Depends, Request
+from fastapi import FastAPI, status, HTTPException, Depends, Request, Path, Body, Query
 from fastapi.responses import Response
 from firebase_admin import auth, initialize_app
 import models, schemas, settings
@@ -99,7 +100,7 @@ def health_check():
 @app_router.get("/rooms/")
 def list_rooms(
         profile: UserProfile = Depends(UserProfile(test_only_uid)),
-) -> schemas.PaginationContainer:
+):
     query = models.client.collection('rooms').stream()
     rooms = [models.Room.from_snapshot(doc) for doc in query]
     container = schemas.PaginationContainer(
@@ -117,12 +118,16 @@ def create_room(
     room = room_ref.document()
     room.set({
         'name': room_request.name,
-        'owner_id': models.client.document(f'profile/{profile.id}'),
+        'owner_id': models.client.document(f'profiles/{profile.id}'),
+        'created': datetime.now(),
     })
     return models.Room.from_snapshot(room.get())
 
 
-@app_router.get("/rooms/{room_id}")
+@app_router.get(
+    "/rooms/{room_id}",
+    response_model=models.Room,
+)
 def get_room(
         room_id: str,
         profile: UserProfile = Depends(UserProfile(test_only_uid)),
@@ -158,24 +163,152 @@ def delete_room(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-#@app.get("/rooms/{room_id}/attendees/")
-#def list_attendees(
-#        room_id: str,
-#        profile: UserProfile = Depends(UserProfile(test_only_uid)),
-#):
-#    return schemas.PaginationContainer(
-#        result={'test': 'test'},
-#    )
-#
-#
-#@app.post("/api/rooms/{room_id}/attendees/")
-#def add_attendee(
-#        room_id: str,
-#        profile: UserProfile = Depends(UserProfile(test_only_uid)),
-#):
-#    return schemas.PaginationContainer(
-#        result={'test': 'test'},
-#    )
+@app_router.get(
+    "/attendees/",
+    response_model=schemas.PaginationContainer,
+)
+def list_attendees(
+        profile: UserProfile = Depends(UserProfile(test_only_uid)),
+        limit: int = Query(50, title='Number of results per request'),
+        room_id: Optional[str] = Query(None, title='Room id'),
+):
+    query = models.attendees
+    if room_id:
+        query = query.where(
+            'room_id', '==', models.client.document(f'rooms/{room_id}')
+        )
+    query = query.order_by(
+        'created',
+        direction=models.firestore.Query.DESCENDING
+    ).limit(limit)
+
+    return schemas.PaginationContainer(
+        result=[models.Attendee.from_snapshot(doc) for doc in query.stream()],
+    )
+
+
+@app_router.post(
+    "/attendees/",
+    response_model=models.Attendee,
+)
+def add_attendee(
+        data: schemas.NewAttendee,
+        profile: models.Profile = Depends(UserProfile(test_only_uid)),
+):
+    # check the room
+    room = models.client.document(f'rooms/{data.room_id}').get()
+    if not room.exists:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Room with {data.room_id} id doesn't exist."
+        )
+
+    # check if already added
+    if list(models.attendees.where(
+                'profile_id', '==', profile.id
+            ).where(
+                'room_id', '==', data.room_id
+            ).stream()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Profile with {profile.id} id already joined {data.room_id} room."
+        )
+    # create new one
+    new_attendee = models.attendees.document()
+    new_attendee.set(
+        {
+            'name': profile.display_name,
+            'profile_id': models.client.document(f'profiles/{profile.id}'),
+            'room_id': models.client.document(f'rooms/{data.room_id}'),
+            'created': datetime.now(),
+            'hand_up': False,
+            'answers': 0,
+            'room_owner_likes': 0,
+            'peer_likes': 0
+        }
+    )
+
+    return models.Attendee.from_snapshot(new_attendee.get())
+
+
+@app_router.delete("/attendees/{attendee_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_attendee(
+        attendee_id: str = Path(..., title="Attendee id"),
+        profile: models.Profile = Depends(UserProfile(test_only_uid)),
+):
+    ref = models.attendees.document(attendee_id)
+    snapshot = ref.get()
+    if not snapshot.exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Attendee with {attendee_id} id doesn't exist."
+        )
+    if models.Attendee.from_snapshot(snapshot).profile_id != profile.id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Attendee {attendee_id} doesn't belong to current user."
+        )
+    ref.delete()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app_router.get(
+    "/attendees/{attendee_id}",
+    response_model=models.Attendee,
+)
+def get_attendee(
+        attendee_id: str = Path(..., title="Attendee id"),
+        profile: models.Profile = Depends(UserProfile(test_only_uid)),
+):
+    attendee = models.client.document(f'attendees/{attendee_id}').get()
+    if not attendee.exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Attendee with {attendee_id} id doesn't exist."
+        )
+    if attendee.profile_id != profile.id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Attendee {attendee_id} doesn't belong to current user."
+        )
+
+    return models.Attendee.from_snapshot(attendee)
+
+
+@app_router.put(
+    "/attendees/{attendee_id}/hand",
+    response_model=schemas.HandToggle,
+)
+def hand_toggle(
+        attendee_id: str = Path(..., title="Attendee id"),
+        data: schemas.HandToggle = Body(
+            ...,
+            title="True if the attendee raises her hand.",
+        ),
+        profile: models.Profile = Depends(UserProfile(test_only_uid)),
+):
+    ref = models.client.document(f'attendees/{attendee_id}')
+    snapshot = ref.get()
+    if not snapshot.exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Attendee with {attendee_id} id doesn't exist."
+        )
+    if models.Attendee.from_snapshot(snapshot).profile_id != profile.id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Attendee {attendee_id} doesn't belong to current user."
+        )
+    ref.update(
+        {
+            'hand_up': data.hand_up,
+            'hand_change_timestamp': datetime.now(),
+        }
+    )
+
+    return schemas.HandToggle(
+        hand_up=models.Attendee.from_snapshot(ref.get()).hand_up
+    )
 
 
 @app_router.get("/profile")

@@ -1,6 +1,7 @@
 from typing import Optional
 from google.cloud import firestore
 from pydantic import BaseModel
+from datetime import datetime
 from dataclasses import dataclass
 from google.cloud.firestore import DocumentReference
 from google.cloud.firestore import DocumentSnapshot
@@ -20,6 +21,11 @@ firestore.DocumentSnapshot
 
 class NotFound(Exception):
     pass
+
+
+profiles = client.collection('profiles')
+rooms = client.collection('rooms')
+attendees = client.collection('attendees')
 
 
 @dataclass
@@ -76,6 +82,7 @@ class Profile(Firebase):
 class Room(Firebase):
     name: str
     owner_id: str
+    created: datetime
 
     @classmethod
     def save_data(
@@ -92,3 +99,13 @@ class Room(Firebase):
 
 class Attendee(Firebase):
     name: str
+    profile_id: str
+    room_id: str
+    created: datetime
+    # Active fields
+    hand_up: bool = False
+    hand_change_timestamp: Optional[datetime] = None
+    answers: int = 0
+    room_owner_likes: int = 0
+    peer_likes: int = 0
+

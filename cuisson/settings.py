@@ -1,4 +1,4 @@
-version = '0.0.1'
+version = '0.0.2'
 prefix = '/api/v1'
 description = f"""
 🚀 This API allows to manage rooms, profiles, and participants.
@@ -8,8 +8,8 @@ Another version of the [docs]({prefix}/redoc).
 ## Initial release
 * **Create and delete rooms**.
 * **Manage Profiles**. Profile requests must contain authentication token.
-* **Add participants** (_not implemented_).
-* **Raise/lower hand** (_not implemented_).
+* **Add participants**.
+* **Raise/lower hand**.
 
 ## Authentication
 At this point only Google auth is enabled. Profile endpoint looks into Authorization header and validates
