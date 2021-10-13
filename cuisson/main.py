@@ -260,19 +260,21 @@ def get_attendee(
         attendee_id: str = Path(..., title="Attendee id"),
         profile: models.Profile = Depends(UserProfile(test_only_uid)),
 ):
-    attendee = models.client.document(f'attendees/{attendee_id}').get()
-    if not attendee.exists:
+    snapshot = models.client.document(f'attendees/{attendee_id}').get()
+    if not snapshot.exists:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Attendee with {attendee_id} id doesn't exist."
         )
+
+    attendee = models.Attendee.from_snapshot(snapshot)
     if attendee.profile_id != profile.id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Attendee {attendee_id} doesn't belong to current user."
         )
 
-    return models.Attendee.from_snapshot(attendee)
+    return attendee
 
 
 @app_router.put(
