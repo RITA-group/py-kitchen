@@ -1,140 +1,58 @@
 import logging
 from typing import Optional
-from uvicorn import Config, Server
 from datetime import datetime
 from fastapi.routing import APIRouter
-from fastapi import FastAPI, status, HTTPException, Depends, Request, Path, Body, Query
+from fastapi import status, HTTPException, Depends, Path, Body, Query
 from fastapi.responses import Response
-from firebase_admin import auth, initialize_app
-import models, schemas, settings
 
-initialize_app()
+import dependencies as deps
+import models, schemas, crud
+
 logger = logging.getLogger(__name__)
 
-app_router = APIRouter()
-
-app = FastAPI(
-    title='RITA API',
-    description=settings.description,
-    version=settings.version,
-    openapi_url=settings.prefix + '/openapi.json',
-    docs_url=settings.prefix + '/',
-    redoc_url=settings.prefix + '/redoc',
-)
+router = APIRouter()
 
 
-@app.middleware('http')
-async def header_settings(request: Request, call_next):
-    response = await call_next(request)
-    response.headers["Cache-Control"] = 'no-store'
-    return response
-
-
-def uid_from_authorization_token(request: Request) -> str:
-    header = request.headers.get("Authorization", None)
-
-    if not header:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication is not provided."
-        )
-
-    token = header.split(" ")[1]
-    try:
-        decoded_token = auth.verify_id_token(token)
-    except Exception as e:
-        logger.exception(e)
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Authentication error {repr(e)}"
-        )
-    return decoded_token['uid']
-
-
-def test_only_uid(request: Request) -> str:
-    return settings.test_uid
-
-
-def test_user_info(uid: str) -> auth.UserRecord:
-    if uid != settings.test_uid:
-        raise RuntimeError(
-            f'Expected test uid {settings.test_uid} != {uid}'
-        )
-
-    return auth.UserRecord({
-        'localId': uid,
-        'displayName': 'Test Testovich',
-        'email': 'donotemailme@test.com',
-        #'phoneNumber': '11111111',
-    })
-
-
-class UserProfile:
-    def __init__(self, fetch_uid: Optional[callable] = None):
-        if fetch_uid:
-            self.fetch_uid = fetch_uid
-            self.fetch_user = test_user_info
-        else:
-            self.fetch_uid = uid_from_authorization_token
-            self.fetch_user = auth.get_user
-
-    def __call__(self, request: Request) -> models.Profile:
-        uid = self.fetch_uid(request)
-        # get or create profile
-        user_info = self.fetch_user(uid)
-
-        ref = models.DB.profiles.document(uid)
-        snapshot = ref.get()
-        if not snapshot.exists:
-            models.Profile.save_data(ref, user_info.display_name)
-            snapshot = ref.get()
-
-        return models.Profile.from_snapshot(snapshot)
-
-
-@app_router.get("/health")
+@router.get("/health")
 def health_check():
     return {"status": "ok"}
 
 
-@app_router.get("/rooms/")
+@router.get("/rooms/")
 def list_rooms(
-        profile: UserProfile = Depends(UserProfile(test_only_uid)),
+        profile: models.Profile = Depends(deps.UserProfile(test=True)),
+        db=Depends(deps.get_db)
 ):
-    query = models.client.collection('rooms').stream()
-    rooms = [models.Room.from_snapshot(doc) for doc in query]
     container = schemas.PaginationContainer(
-        result=rooms,
+        result=crud.list_rooms(db),
     )
     return container
 
 
-@app_router.post("/rooms/")
+@router.post(
+    "/rooms/",
+    response_model=models.Room,
+)
 def create_room(
-        room_request: schemas.Room,
-        profile: models.Profile = Depends(UserProfile(test_only_uid)),
+        room: schemas.RoomCreate,
+        db=Depends(deps.get_db),
+        profile: models.Profile = Depends(deps.UserProfile(test=True)),
 ):
-    room_ref = models.client.collection('rooms')
-    room = room_ref.document()
-    room.set({
-        'name': room_request.name,
-        'owner_id': models.client.document(f'profiles/{profile.id}'),
-        'created': datetime.now(),
-    })
-    return models.Room.from_snapshot(room.get())
+    return crud.create_room(db, room, profile)
 
 
-@app_router.get(
+@router.get(
     "/rooms/{room_id}",
     response_model=models.Room,
 )
 def get_room(
         room_id: str,
-        profile: UserProfile = Depends(UserProfile(test_only_uid)),
+        db=Depends(deps.get_db),
+        profile: models.Profile = Depends(deps.UserProfile(test=True)),
 ):
     try:
-        room = models.Room.from_id('rooms', room_id)
-    except models.NotFound:
+        room = crud.get_room(db, room_id)
+    except crud.NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Room with {room_id} id doesn't exist."
@@ -142,14 +60,18 @@ def get_room(
     return room
 
 
-@app_router.delete("/rooms/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/rooms/{room_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 def delete_room(
         room_id: str,
-        profile: models.Profile = Depends(UserProfile(test_only_uid)),
+        db=Depends(deps.get_db),
+        profile: models.Profile = Depends(deps.UserProfile(test=True)),
 ):
     try:
-        room = models.Room.from_id('rooms', room_id)
-    except models.NotFound:
+        room = crud.get_room(db, room_id)
+    except crud.NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Room with {room_id} id doesn't exist."
@@ -159,18 +81,19 @@ def delete_room(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Room {room_id} doesn't belong to current user."
         )
-    models.DB.rooms.document(room_id).delete()
+    crud.delete_room(db, room_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app_router.get(
+@router.get(
     "/attendees/",
     response_model=schemas.PaginationContainer,
 )
 def list_attendees(
-        profile: UserProfile = Depends(UserProfile(test_only_uid)),
-        limit: int = Query(50, title='Number of results per request'),
         room_id: Optional[str] = Query(None, title='Room id'),
+        limit: int = Query(50, title='Number of results per request'),
+        db=Depends(deps.get_db),
+        profile: models.Profile = Depends(deps.UserProfile(test=True)),
 ):
     query = models.attendees
     if room_id:
@@ -187,13 +110,13 @@ def list_attendees(
     )
 
 
-@app_router.post(
+@router.post(
     "/attendees/",
     response_model=models.Attendee,
 )
 def add_attendee(
         data: schemas.NewAttendee,
-        profile: models.Profile = Depends(UserProfile(test_only_uid)),
+        profile: models.Profile = Depends(deps.UserProfile('test')),
 ):
     # check the room
     room = models.client.document(f'rooms/{data.room_id}').get()
@@ -231,10 +154,10 @@ def add_attendee(
     return models.Attendee.from_snapshot(new_attendee.get())
 
 
-@app_router.delete("/attendees/{attendee_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/attendees/{attendee_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_attendee(
         attendee_id: str = Path(..., title="Attendee id"),
-        profile: models.Profile = Depends(UserProfile(test_only_uid)),
+        profile: models.Profile = Depends(deps.UserProfile('test')),
 ):
     ref = models.attendees.document(attendee_id)
     snapshot = ref.get()
@@ -252,13 +175,13 @@ def delete_attendee(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app_router.get(
+@router.get(
     "/attendees/{attendee_id}",
     response_model=models.Attendee,
 )
 def get_attendee(
         attendee_id: str = Path(..., title="Attendee id"),
-        profile: models.Profile = Depends(UserProfile(test_only_uid)),
+        profile: models.Profile = Depends(deps.UserProfile('test')),
 ):
     snapshot = models.client.document(f'attendees/{attendee_id}').get()
     if not snapshot.exists:
@@ -277,7 +200,7 @@ def get_attendee(
     return attendee
 
 
-@app_router.put(
+@router.put(
     "/attendees/{attendee_id}/hand",
     response_model=schemas.HandToggle,
 )
@@ -287,7 +210,7 @@ def hand_toggle(
             ...,
             title="True if the attendee raises her hand.",
         ),
-        profile: models.Profile = Depends(UserProfile(test_only_uid)),
+        profile: models.Profile = Depends(deps.UserProfile('test')),
 ):
     ref = models.client.document(f'attendees/{attendee_id}')
     snapshot = ref.get()
@@ -313,38 +236,19 @@ def hand_toggle(
     )
 
 
-@app_router.get("/profile")
+@router.get("/profile")
 def get_profile(
-        profile: models.Profile = Depends(UserProfile()),
+        profile: models.Profile = Depends(deps.UserProfile()),
 ):
     return profile
 
 
-@app_router.patch("/profile")
+@router.patch("/profile")
 def update_profile(
         profile_request: schemas.Profile,
-        profile: models.Profile = Depends(UserProfile()),
+        profile: models.Profile = Depends(deps.UserProfile()),
 ):
     ref = models.client.document(f'profiles/{profile.id}')
     ref.update(profile_request.dict())
 
     return models.Profile.from_snapshot(ref.get())
-
-
-app.include_router(
-    app_router,
-    prefix=settings.prefix,
-)
-
-
-if __name__ == '__main__':
-
-    server = Server(
-        Config(
-            app,
-            host="localhost",
-            port=8080,
-            log_level='debug',
-        ),
-    )
-    server.run()

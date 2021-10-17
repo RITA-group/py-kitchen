@@ -1,12 +1,11 @@
 from typing import Optional
-from google.cloud import firestore
 from pydantic import BaseModel
 from datetime import datetime
 from dataclasses import dataclass
 from google.cloud.firestore import DocumentReference
 from google.cloud.firestore import DocumentSnapshot
 
-client = firestore.Client()
+#client = firestore.Client()
 
 """
 firestore.DocumentSnapshot
@@ -19,13 +18,11 @@ firestore.DocumentSnapshot
 """
 
 
-class NotFound(Exception):
-    pass
 
 
-profiles = client.collection('profiles')
-rooms = client.collection('rooms')
-attendees = client.collection('attendees')
+#profiles = client.collection('profiles')
+#rooms = client.collection('rooms')
+#attendees = client.collection('attendees')
 
 
 @dataclass
@@ -35,11 +32,11 @@ class FirebaseCollections:
     attendees: callable
 
 
-DB = FirebaseCollections(
-    profiles=client.collection('profiles'),
-    rooms=client.collection('rooms'),
-    attendees=client.collection('attendees'),
-)
+#DB = FirebaseCollections(
+#    profiles=client.collection('profiles'),
+#    rooms=client.collection('rooms'),
+#    attendees=client.collection('attendees'),
+#)
 
 
 class Firebase(BaseModel):
@@ -66,17 +63,6 @@ class Profile(Firebase):
     display_name: str
     notification_token: Optional[str]
 
-    @classmethod
-    def save_data(
-            cls,
-            ref: DocumentReference,
-            name: str,
-            notification_token: Optional[str] = None
-    ):
-        ref.set({
-            'display_name': name,
-            'notification_token': notification_token,
-        })
 
 
 class Room(Firebase):
@@ -93,7 +79,7 @@ class Room(Firebase):
     ):
         ref.set({
             'name': name,
-            'owner_id': client.document(f'profile/{owner_id}'),
+            #'owner_id': client.document(f'profile/{owner_id}'),
         })
 
 

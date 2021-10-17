@@ -22,7 +22,7 @@ ENV PYTHONUNBUFFERED 1
 
 
 # Add our application files
-COPY ./cuisson /code
+COPY src /code
 WORKDIR /code
 
 EXPOSE 8080
