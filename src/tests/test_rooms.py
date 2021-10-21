@@ -1,22 +1,5 @@
-import pytest
 from freezegun import freeze_time
 from unittest.mock import ANY
-from datetime import datetime
-
-
-@pytest.fixture
-def rooms(firestore):
-    _, alpha_ref = firestore.collection('rooms').add({
-        'name': 'test room 1',
-        'owner_id': 'testtesttest',
-        'created': datetime(2021, 1, 1),
-    })
-    _, bravo_ref = firestore.collection('rooms').add({
-        'name': 'test room 2',
-        'owner_id': 'some-test-id',
-        'created': datetime(2021, 1, 2),
-    })
-    return alpha_ref, bravo_ref
 
 
 def test_list_rooms(client, rooms):
@@ -28,13 +11,13 @@ def test_list_rooms(client, rooms):
             {
                 'id': ANY,
                 'name': 'test room 1',
-                'owner_id': 'testtesttest',
+                'profile_id': 'testtesttest',
                 'created': '2021-01-01T00:00:00',
             },
             {
                 'id': ANY,
                 'name': 'test room 2',
-                'owner_id': 'some-test-id',
+                'profile_id': 'some-test-id',
                 'created': '2021-01-02T00:00:00',
             },
         ]
@@ -51,7 +34,7 @@ def test_create_room(client):
     assert response.json() == {
         'id': ANY,
         'name': 'test msd room',
-        'owner_id': 'testtesttest',
+        'profile_id': 'testtesttest',
         'created': '2021-01-01T00:00:00',
     }
 

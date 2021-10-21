@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime
 from fastapi.testclient import TestClient
 from firebase_admin import auth
 from mockfirestore import MockFirestore
@@ -35,3 +36,21 @@ def app(auth_module, firestore):
 @pytest.fixture
 def client(app):
     return TestClient(app)
+
+
+@pytest.fixture
+def rooms(firestore):
+    _, alpha_ref = firestore.collection('rooms').add({
+        'name': 'test room 1',
+        'profile_id': 'testtesttest',
+        'created': datetime(2021, 1, 1),
+    })
+    _, bravo_ref = firestore.collection('rooms').add({
+        'name': 'test room 2',
+        'profile_id': 'some-test-id',
+        'created': datetime(2021, 1, 2),
+    })
+
+    return alpha_ref, bravo_ref
+
+

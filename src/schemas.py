@@ -25,7 +25,7 @@ class RoomCreate(RoomBase):
 
 class Room(RoomBase):
     id: str
-    owner_id: str
+    profile_id: str
     created: datetime
 
 
@@ -43,6 +43,20 @@ class Profile(ProfileBase):
 
 class NewAttendee(BaseModel):
     room_id: str = Field(..., example='abcxyz')
+
+
+class Attendee(BaseModel):
+    id: str
+    name: str
+    profile_id: str
+    room_id: str
+    created: datetime
+    # Active fields
+    hand_up: bool = False
+    hand_change_timestamp: Optional[datetime] = None
+    answers: int = 0
+    room_owner_likes: int = 0
+    peer_likes: int = 0
 
 
 class HandToggle(BaseModel):
