@@ -1,4 +1,4 @@
-version = '0.0.2'
+version = '0.1.0'
 prefix = '/api/v1'
 description = f"""
 🚀 This API allows to manage rooms, profiles, and participants.
