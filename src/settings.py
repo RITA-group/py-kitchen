@@ -21,3 +21,9 @@ of how to form the auth header.
 """
 
 test_uid = 'testtesttest'
+
+origins = [
+    "https://rita-iu.web.app/",
+    "http://localhost",
+    "http://localhost:8100",
+]

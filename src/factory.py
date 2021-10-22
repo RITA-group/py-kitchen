@@ -1,5 +1,6 @@
 from firebase_admin import auth, initialize_app, firestore
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from middleware import CacheControlHeader
 from api import router
@@ -16,6 +17,13 @@ def build_app():
         redoc_url=settings.prefix + '/redoc',
     )
     app.add_middleware(CacheControlHeader, header_value='no-store')
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     app.include_router(
         router,
