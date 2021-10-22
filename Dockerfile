@@ -27,4 +27,4 @@ WORKDIR /code
 
 EXPOSE 8080
 
-CMD ["python3", "prod_server.py"]
+CMD ["python3", "server_prod.py"]
