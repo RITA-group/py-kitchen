@@ -200,12 +200,3 @@ def get_profile(
         profile: schemas.Profile = Depends(deps.profile),
 ):
     return profile
-
-
-@router.get(
-    "/user",
-)
-def get_profile(
-    current_user=Depends(deps.user)
-):
-    return 'test'
