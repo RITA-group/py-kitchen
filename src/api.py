@@ -19,7 +19,7 @@ def health_check():
 
 @router.get("/rooms/")
 def list_rooms(
-        profile: schemas.Profile = Depends(deps.UserProfile(test=True)),
+        profile: schemas.Profile = Depends(deps.test_profile),
         db=Depends(deps.get_db)
 ):
     container = schemas.PaginationContainer(
@@ -35,7 +35,7 @@ def list_rooms(
 def create_room(
         room: schemas.RoomCreate,
         db=Depends(deps.get_db),
-        profile: schemas.Profile = Depends(deps.UserProfile(test=True)),
+        profile: schemas.Profile = Depends(deps.test_profile),
 ):
     return crud.create_room(db, room, profile)
 
@@ -47,7 +47,7 @@ def create_room(
 def get_room(
         room_id: str,
         db=Depends(deps.get_db),
-        profile: schemas.Profile = Depends(deps.UserProfile(test=True)),
+        profile: schemas.Profile = Depends(deps.test_profile),
 ):
     try:
         room = crud.get_room(db, room_id)
@@ -66,7 +66,7 @@ def get_room(
 def delete_room(
         room_id: str,
         db=Depends(deps.get_db),
-        profile: schemas.Profile = Depends(deps.UserProfile(test=True)),
+        profile: schemas.Profile = Depends(deps.test_profile),
 ):
     try:
         room = crud.get_room(db, room_id)
@@ -92,7 +92,7 @@ def list_attendees(
         room_id: Optional[str] = Query(None, title='Room id'),
         limit: int = Query(50, title='Number of results per request'),
         db=Depends(deps.get_db),
-        profile: schemas.Profile = Depends(deps.UserProfile(test=True)),
+        profile: schemas.Profile = Depends(deps.test_profile),
 ):
     attendees = crud.list_attendees(db, limit, room_id)
 
@@ -108,7 +108,7 @@ def list_attendees(
 def create_attendee(
         data: schemas.NewAttendee,
         db=Depends(deps.get_db),
-        profile: schemas.Profile = Depends(deps.UserProfile(test=True)),
+        profile: schemas.Profile = Depends(deps.test_profile),
 ):
     # check the room
     try:
@@ -135,7 +135,7 @@ def create_attendee(
 def delete_attendee(
         attendee_id: str = Path(..., title="Attendee id"),
         db=Depends(deps.get_db),
-        profile: schemas.Profile = Depends(deps.UserProfile(test=True)),
+        profile: schemas.Profile = Depends(deps.test_profile),
 ):
     try:
         attendee = crud.get_attendee(db, attendee_id)
@@ -160,7 +160,7 @@ def delete_attendee(
 def get_attendee(
         attendee_id: str = Path(..., title="Attendee id"),
         db=Depends(deps.get_db),
-        profile: schemas.Profile = Depends(deps.UserProfile(test=True)),
+        profile: schemas.Profile = Depends(deps.test_profile),
 ) -> schemas.Attendee:
     try:
         attendee = crud.get_attendee(db, attendee_id)
@@ -179,7 +179,7 @@ def get_attendee(
 def hand_toggle(
         attendee_id: str = Path(..., title="Attendee id"),
         db=Depends(deps.get_db),
-        profile: schemas.Profile = Depends(deps.UserProfile(test=True)),
+        profile: schemas.Profile = Depends(deps.test_profile),
 ):
     attendee = crud.get_attendee(db, attendee_id)
     if attendee.profile_id != profile.id:
@@ -197,6 +197,15 @@ def hand_toggle(
     response_model=schemas.Profile,
 )
 def get_profile(
-        profile: schemas.Profile = Depends(deps.UserProfile()),
+        profile: schemas.Profile = Depends(deps.profile),
 ):
     return profile
+
+
+@router.get(
+    "/user",
+)
+def get_profile(
+    current_user=Depends(deps.user)
+):
+    return 'test'

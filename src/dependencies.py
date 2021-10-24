@@ -1,9 +1,14 @@
 from fastapi import Request, HTTPException, status, Depends
+from fastapi.security import OAuth2PasswordBearer
 
 import settings
 import crud
+import schemas
 
 from firebase_admin.auth import UserRecord, UserNotFoundError
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
 
 def get_auth(request: Request):
     return request.app.auth
@@ -15,32 +20,28 @@ def get_db(request: Request):
 
 def uid_from_authorization_token(
         request: Request,
+        token: str = Depends(oauth2_scheme),
 ) -> str:
-    header = request.headers.get("Authorization", None)
-
-    if not header:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication is not provided."
-        )
-
-    token = header.split(" ")[1]
     try:
         decoded_token = request.app.auth.verify_id_token(token)
     except Exception as e:
+        # verify_id_token can raise a bunch of different errors
+        # For now we just catch them all and report it in detail with 401 status.
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Authentication error {repr(e)}"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid authentication credentials: {repr(e)}",
+            headers={"WWW-Authenticate": "Bearer"},
+
         )
     return decoded_token['uid']
 
 
-def get_user(
+def user(
         uid: str = Depends(uid_from_authorization_token),
         auth=Depends(get_auth)
 ) -> UserRecord:
     try:
-        user_record = auth.get_user(uid)
+        user_record = auth.user(uid)
     except UserNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -50,28 +51,27 @@ def get_user(
     return user_record
 
 
-class UserProfile:
-    def __init__(self, test: bool = False):
-        self.test = test
+def profile(
+    db=Depends(get_db),
+    user_record=Depends(user),
+) -> schemas.Profile:
+    return crud.get_or_create_profile(
+        db,
+        user_record,
+    )
 
-    def __call__(self, request: Request):
-        # TODO: remove after client auth is implemented
-        if self.test:
-            uid = settings.test_uid
-            user_info = UserRecord({
-                'localId': uid,
-                'displayName': 'Test Testovich',
-                'email': 'donotemailme@test.com',
-                #'phoneNumber': '11111111',
-            })
-            return crud.get_or_create_profile(
-                request.app.db,
-                user_info
-            )
 
-        user_info = get_user()
+def test_profile(
+    db=Depends(get_db),
+):
+    user_info = UserRecord({
+        'localId': settings.test_uid,
+        'displayName': 'Test Testovich',
+        'email': 'donotemailme@test.com',
+        # 'phoneNumber': '11111111',
+    })
 
-        return crud.get_or_create_profile(
-            request.app.db,
-            user_info
-        )
+    return crud.get_or_create_profile(
+        db,
+        user_info
+    )
