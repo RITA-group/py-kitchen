@@ -5,11 +5,34 @@ from fastapi import status, HTTPException, Depends, Path, Query
 from fastapi.responses import Response
 
 import dependencies as deps
-import schemas, crud
+import schemas
+import crud
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def fetch_attendee(attendee_id: str, db) -> schemas.Attendee:
+    try:
+        attendee = crud.get_attendee(db, attendee_id)
+    except crud.NotFound:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Attendee with {attendee_id} id doesn't exist."
+        )
+    return attendee
+
+
+def fetch_room(room_id: str, db) -> schemas.Room:
+    try:
+        room = crud.get_room(db, room_id)
+    except crud.NotFound:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Room with {room_id} id doesn't exist."
+        )
+    return room
 
 
 @router.get("/health")
@@ -49,14 +72,46 @@ def get_room(
         db=Depends(deps.get_db),
         profile: schemas.Profile = Depends(deps.profile),
 ):
-    try:
-        room = crud.get_room(db, room_id)
-    except crud.NotFound:
+    return fetch_room(room_id, db)
+
+
+@router.get(
+    "/rooms/{room_id}/next_in_queue",
+    response_model=Optional[schemas.Attendee],
+)
+def next_in_queue(
+    room_id: str,
+    attendee_id: Optional[str] = Query(None, title='Force a specific attendee.'),
+    order: crud.OrderTypes = Query(
+        crud.OrderTypes.least_answers,
+        title='Algorithm used to pick the next attendee.'
+    ),
+    db=Depends(deps.get_db),
+    profile: schemas.Profile = Depends(deps.profile),
+):
+    room = fetch_room(room_id, db)
+    if room.profile_id != profile.id:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Room with {room_id} id doesn't exist."
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Room {room_id} doesn't belong to current user."
         )
-    return room
+
+    if attendee_id:
+        attendee = fetch_attendee(attendee_id, db)
+        if attendee.room_id != room.id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Attendee with {attendee_id} is not in the room."
+            )
+    else:
+        picker = crud.NextAttendee(db, room_id)
+        try:
+            attendee = picker(order)
+        except crud.NotFound:
+            return None
+    # TODO: change attendee answering status, hand status
+    # TODO: change current answering status, hand status
+    return attendee
 
 
 @router.delete(
@@ -162,14 +217,7 @@ def get_attendee(
         db=Depends(deps.get_db),
         profile: schemas.Profile = Depends(deps.profile),
 ) -> schemas.Attendee:
-    try:
-        attendee = crud.get_attendee(db, attendee_id)
-    except crud.NotFound:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Attendee with {attendee_id} id doesn't exist."
-        )
-    return attendee
+    return fetch_attendee(attendee_id, db)
 
 
 @router.put(

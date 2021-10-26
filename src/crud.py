@@ -1,5 +1,6 @@
 from typing import Optional
 from datetime import datetime
+from enum import Enum
 from firebase_admin.auth import UserRecord
 from google.cloud.firestore import Client as FirestoreDb
 from google.cloud.firestore import DocumentSnapshot, Query
@@ -132,3 +133,39 @@ def get_attendee(
     if not doc.exists:
         raise NotFound()
     return schemas.Attendee(**data_from_snapshot(doc))
+
+
+class OrderTypes(str, Enum):
+    least_answers: str = "least_answers"
+    first_arrived: str = "first_arrived"
+    random_in_queue: str = "random_in_queue"
+    random_in_room: str = "random_in_room"
+
+
+class NextAttendee:
+    def __init__(
+        self,
+        db: FirestoreDb,
+        room_id: str,
+    ):
+        self.db = db
+        self.room_id = room_id
+
+    def __call__(self, order: OrderTypes) -> schemas.Attendee:
+        func = getattr(self, f'_{order.name}')
+        attendee = func()
+        if not attendee:
+            raise NotFound
+        return func()
+
+    def _least_answer(self):
+        return None
+
+    def _first_arrived(self):
+        return None
+
+    def _random_in_queue(self):
+        return None
+
+    def _random_in_room(self):
+        return None
