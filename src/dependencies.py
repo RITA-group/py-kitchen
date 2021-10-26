@@ -59,19 +59,3 @@ def profile(
         db,
         user_record,
     )
-
-
-def test_profile(
-    db=Depends(get_db),
-):
-    user_info = UserRecord({
-        'localId': settings.test_uid,
-        'displayName': 'Test Testovich',
-        'email': 'donotemailme@test.com',
-        # 'phoneNumber': '11111111',
-    })
-
-    return crud.get_or_create_profile(
-        db,
-        user_info
-    )
