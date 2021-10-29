@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -53,6 +53,7 @@ class Attendee(BaseModel):
     created: datetime
     # Active fields
     hand_up: bool = False
+    answering: bool = False
     hand_change_timestamp: Optional[datetime] = None
     answers: int = 0
     room_owner_likes: int = 0

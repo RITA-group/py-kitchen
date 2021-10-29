@@ -68,7 +68,7 @@ def create_room(
     response_model=schemas.Room,
 )
 def get_room(
-        room_id: str,
+        room_id: str = Path(..., title="Room id"),
         db=Depends(deps.get_db),
         profile: schemas.Profile = Depends(deps.profile),
 ):
@@ -76,12 +76,15 @@ def get_room(
 
 
 @router.get(
-    "/rooms/{room_id}/next_in_queue",
+    "/rooms/{room_id}/next_attendee",
     response_model=Optional[schemas.Attendee],
 )
-def next_in_queue(
-    room_id: str,
-    attendee_id: Optional[str] = Query(None, title='Force a specific attendee.'),
+def next_attendee(
+    room_id: str = Path(..., title="Room id"),
+    attendee_id: Optional[str] = Query(
+        None,
+        title='Force a specific attendee.'
+    ),
     order: crud.OrderTypes = Query(
         crud.OrderTypes.least_answers,
         title='Algorithm used to pick the next attendee.'
@@ -89,6 +92,7 @@ def next_in_queue(
     db=Depends(deps.get_db),
     profile: schemas.Profile = Depends(deps.profile),
 ):
+    # Only owner can call next attendee
     room = fetch_room(room_id, db)
     if room.profile_id != profile.id:
         raise HTTPException(
@@ -96,22 +100,38 @@ def next_in_queue(
             detail=f"Room {room_id} doesn't belong to current user."
         )
 
+    if order == crud.OrderTypes.specific_attendee and not attendee_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"If {crud.OrderTypes.specific_attendee} is selected, "
+                   f"attendee_id must be provided."
+        )
+
     if attendee_id:
+        # make sure attendee exists
         attendee = fetch_attendee(attendee_id, db)
+        # Validate the attendee belongs to the room it's assigned
         if attendee.room_id != room.id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Attendee with {attendee_id} is not in the room."
             )
+        # Assume the specific attendee is needed since id was provided
+        order = crud.OrderTypes.specific_attendee
+        picker = crud.NextAttendee(db, room_id, attendee)
     else:
         picker = crud.NextAttendee(db, room_id)
-        try:
-            attendee = picker(order)
-        except crud.NotFound:
-            return None
-    # TODO: change attendee answering status, hand status
-    # TODO: change current answering status, hand status
-    return attendee
+
+    try:
+        attendee = picker(order)
+    except crud.NotFound:
+        return None
+    finally:
+        # even if there is no next attendee we stop all previous answers
+        crud.stop_all_answers(db, room.id)
+
+    crud.start_answer(db, attendee.id)
+    return crud.get_attendee(db, attendee.id)
 
 
 @router.delete(
@@ -119,7 +139,7 @@ def next_in_queue(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 def delete_room(
-        room_id: str,
+        room_id: str = Path(..., title="Room id"),
         db=Depends(deps.get_db),
         profile: schemas.Profile = Depends(deps.profile),
 ):

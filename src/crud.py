@@ -3,7 +3,7 @@ from datetime import datetime
 from enum import Enum
 from firebase_admin.auth import UserRecord
 from google.cloud.firestore import Client as FirestoreDb
-from google.cloud.firestore import DocumentSnapshot, Query
+from google.cloud.firestore import DocumentSnapshot, Query, Increment
 
 import schemas
 
@@ -109,6 +109,7 @@ def create_attendee(
         'room_id': room_id,
         'created': datetime.now(),
         'hand_up': False,
+        'answering': False,
         'answers': 0,
         'room_owner_likes': 0,
         'peer_likes': 0
@@ -135,11 +136,43 @@ def get_attendee(
     return schemas.Attendee(**data_from_snapshot(doc))
 
 
+def stop_all_answers(
+    db: FirestoreDb,
+    room_id: str,
+):
+    query = db.collection('attendees').where(
+        'room_id', '==', room_id
+    ).where(
+        'answering', '==', True
+    )
+    for doc in query.stream():
+        doc.reference.update(
+            {
+                'answering': False,
+                'answers': Increment(1),
+            }
+        )
+
+
+def start_answer(
+    db: FirestoreDb,
+    attendee_id: str,
+):
+    ref = db.collection('attendees').document(attendee_id)
+    ref.update(
+        {
+            'answering': True,
+            'hand_up': False,
+        }
+    )
+
+
 class OrderTypes(str, Enum):
     least_answers: str = "least_answers"
-    first_arrived: str = "first_arrived"
-    random_in_queue: str = "random_in_queue"
-    random_in_room: str = "random_in_room"
+    # first_arrived: str = "first_arrived"
+    # random_in_queue: str = "random_in_queue"
+    # random_in_room: str = "random_in_room"
+    specific_attendee: str = "specific_attendee"
 
 
 class NextAttendee:
@@ -147,19 +180,34 @@ class NextAttendee:
         self,
         db: FirestoreDb,
         room_id: str,
+        attendee: Optional[schemas.Attendee] = None
     ):
         self.db = db
-        self.room_id = room_id
+        self.query = db.collection('attendees').where(
+            'room_id', '==', room_id
+        )
+        self.attendee = attendee
 
     def __call__(self, order: OrderTypes) -> schemas.Attendee:
         func = getattr(self, f'_{order.name}')
-        attendee = func()
-        if not attendee:
+        doc = func()
+        if not doc:
             raise NotFound
-        return func()
+        return schemas.Attendee(**data_from_snapshot(doc))
 
-    def _least_answer(self):
-        return None
+    def _specific_attendee(self):
+        # reload attendee info
+        doc = self.db.collection('attendees').document(self.attendee.id).get()
+        return doc
+
+    def _least_answers(self):
+        query = self.query.where(
+            'hand_up', '==', True
+        ).order_by(
+            'answers',
+            direction=Query.DESCENDING,
+        ).limit(1)
+        return next(query.stream(), None)
 
     def _first_arrived(self):
         return None

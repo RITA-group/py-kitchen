@@ -149,6 +149,16 @@ def rooms(firestore, instructor_one_profile, instructor_two_profile):
 
 
 @pytest.fixture
+def room_one(rooms):
+    return rooms[0].get()
+
+
+@pytest.fixture
+def room_two(rooms):
+    return rooms[1].get()
+
+
+@pytest.fixture
 def attendees(
     firestore,
     rooms,
@@ -161,6 +171,7 @@ def attendees(
         'room_id': rooms[0].id,
         'created': datetime(2021, 1, 3),
         'hand_up': False,
+        'answering': False,
         'answers': 0,
         'room_owner_likes': 0,
         'peer_likes': 0
@@ -171,6 +182,7 @@ def attendees(
         'room_id': rooms[0].id,
         'created': datetime(2021, 1, 2),
         'hand_up': False,
+        'answering': False,
         'answers': 0,
         'room_owner_likes': 0,
         'peer_likes': 0
@@ -181,6 +193,7 @@ def attendees(
         'room_id': rooms[1].id,
         'created': datetime(2021, 1, 1),
         'hand_up': False,
+        'answering': False,
         'answers': 0,
         'room_owner_likes': 0,
         'peer_likes': 0
