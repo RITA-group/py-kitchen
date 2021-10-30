@@ -72,7 +72,7 @@ def student_one(app, student_one_record):
     mock_auth = MagicMock(auth)
 
     mock_auth.verify_id_token.return_value = {'uid': student_one_record.uid}
-    mock_auth.user = MagicMock(return_value=student_one_record)
+    mock_auth.get_user = MagicMock(return_value=student_one_record)
 
     app.auth = mock_auth
     client = TestClient(app)
@@ -87,7 +87,7 @@ def instructor_one(app, instructor_one_record):
     mock_auth = MagicMock(auth)
 
     mock_auth.verify_id_token.return_value = {'uid': instructor_one_record.uid}
-    mock_auth.user = MagicMock(return_value=instructor_one_record)
+    mock_auth.get_user = MagicMock(return_value=instructor_one_record)
 
     app.auth = mock_auth
     client = TestClient(app)
@@ -102,7 +102,7 @@ def instructor_two(app, instructor_two_record):
     mock_auth = MagicMock(auth)
 
     mock_auth.verify_id_token.return_value = {'uid': instructor_two_record.uid}
-    mock_auth.user = MagicMock(return_value=instructor_two_record)
+    mock_auth.get_user = MagicMock(return_value=instructor_two_record)
 
     app.auth = mock_auth
     client = TestClient(app)

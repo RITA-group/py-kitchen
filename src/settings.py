@@ -1,3 +1,5 @@
+import os
+
 version = '0.1.1'
 prefix = '/api/v1'
 description = f"""
@@ -27,3 +29,5 @@ origins = [
     "http://localhost",
     "http://localhost:8100",
 ]
+
+api_key = os.environ.get('API_KEY', 'test_api_key')

@@ -1,7 +1,6 @@
 from fastapi import Request, HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
 
-import settings
 import crud
 import schemas
 
@@ -19,8 +18,8 @@ def get_db(request: Request):
 
 
 def uid_from_authorization_token(
-        request: Request,
-        token: str = Depends(oauth2_scheme),
+    request: Request,
+    token: str = Depends(oauth2_scheme),
 ) -> str:
     try:
         decoded_token = request.app.auth.verify_id_token(token)
@@ -37,11 +36,11 @@ def uid_from_authorization_token(
 
 
 def user(
-        uid: str = Depends(uid_from_authorization_token),
-        auth=Depends(get_auth)
+    uid: str = Depends(uid_from_authorization_token),
+    auth=Depends(get_auth)
 ) -> UserRecord:
     try:
-        user_record = auth.user(uid)
+        user_record = auth.get_user(uid)
     except UserNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

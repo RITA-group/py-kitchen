@@ -3,10 +3,11 @@ from typing import Optional
 from fastapi.routing import APIRouter
 from fastapi import status, HTTPException, Depends, Path, Query
 from fastapi.responses import Response
+from fastapi.security import OAuth2PasswordRequestForm
 
 import dependencies as deps
 import schemas
-import crud
+import crud, utils
 
 logger = logging.getLogger(__name__)
 
@@ -267,3 +268,30 @@ def get_profile(
         profile: schemas.Profile = Depends(deps.profile),
 ):
     return profile
+
+
+@router.post(
+    "/token",
+)
+def test_login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    auth=Depends(deps.get_auth),
+):
+    if not form_data.username.endswith('@blablatest.org'):
+        raise HTTPException(
+            status_code=400,
+            detail=f"{form_data.username} is not registered as api test account.",
+        )
+
+    try:
+        user = auth.get_user_by_email(form_data.username)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Test login error: {repr(e)}",
+        )
+
+    custom_token = auth.create_custom_token(user.uid)
+    user_token = utils.get_user_token_from(custom_token)['idToken']
+
+    return {"access_token": user_token, "token_type": "bearer"}

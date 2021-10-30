@@ -26,10 +26,14 @@ def get_or_create_profile(
     user_info: UserRecord
 ) -> schemas.Profile:
     ref = db.collection('profiles').document(user_info.uid)
+    email = user_info.email or ''
+    name_from_email, _ = email.split('@')
+    name_from_email = name_from_email.replace('_', ' ')
+
     snapshot = ref.get()
     if not snapshot.exists:
         ref.set({
-            'display_name': user_info.display_name,
+            'display_name': user_info.display_name or name_from_email,
             'notification_token': None,
         })
         snapshot = ref.get()

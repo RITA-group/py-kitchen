@@ -5,12 +5,12 @@ services:
     container_name: kitchen
     build:
       context: ./
-      args:
-        - _SERVICE_ACCOUNT_KEY
     image: kitchen:latest
     volumes:
       - ${LOCAL_SERVICE_ACCOUNT_KEY}:/keys/service_account_key.json
       - ./src:/code
+    environment:
+      - API_KEY=${API_KEY}
     entrypoint: /bin/bash
     command: -c "python3 server_dev.py"
     ports:
