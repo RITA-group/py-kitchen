@@ -277,7 +277,7 @@ def test_login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     auth=Depends(deps.get_auth),
 ):
-    if not form_data.username.endswith('@blablatest.org'):
+    if not form_data.username.endswith('@t.org'):
         raise HTTPException(
             status_code=400,
             detail=f"{form_data.username} is not registered as api test account.",
