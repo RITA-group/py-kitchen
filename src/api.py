@@ -255,9 +255,8 @@ def hand_toggle(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Attendee {attendee.id} doesn't belong to current user."
         )
-    # TODO: Change state
 
-    return attendee
+    return crud.hand_toggle(db, attendee)
 
 
 @router.get(

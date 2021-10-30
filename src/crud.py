@@ -167,6 +167,20 @@ def start_answer(
     )
 
 
+def hand_toggle(
+    db: FirestoreDb,
+    attendee: schemas.Attendee,
+) -> schemas.Attendee:
+    ref = db.collection('attendees').document(attendee.id)
+    ref.update(
+        {
+            'hand_up': not attendee.hand_up,
+            'hand_change_timestamp': datetime.now(),
+        }
+    )
+    return schemas.Attendee(**data_from_snapshot(ref.get()))
+
+
 class OrderTypes(str, Enum):
     least_answers: str = "least_answers"
     # first_arrived: str = "first_arrived"

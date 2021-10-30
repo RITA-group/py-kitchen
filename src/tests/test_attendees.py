@@ -1,4 +1,5 @@
 from freezegun import freeze_time
+from datetime import datetime
 from unittest.mock import ANY
 
 
@@ -168,3 +169,51 @@ def test_delete_other_owner_attendee_failure(student_one, rooms, attendees, fire
     ref = firestore.collection('attendees').document(attendee_id)
     doc = ref.get()
     assert doc.exists
+
+
+@freeze_time('2021-01-04')
+def test_attendee_hand_toggle(
+        student_one,
+        student_one_profile,
+        attendees,
+):
+    response = student_one.put(
+        f"/api/v1/attendees/{attendees[0].id}/hand_toggle",
+    )
+    assert response.status_code == 200
+    assert response.json() == {
+        'id': ANY,
+        'profile_id': student_one_profile.id,
+        'room_id': ANY,
+        'answers': 0,
+        'created': '2021-01-03T00:00:00',
+        'hand_change_timestamp': '2021-01-04T00:00:00',
+        'hand_up': True,
+        'answering': False,
+        'name': student_one_profile.display_name,
+        'peer_likes': 0,
+        'room_owner_likes': 0,
+    }
+    doc_fields = attendees[0].get().to_dict()
+    assert doc_fields['hand_up'] is True
+    assert doc_fields['hand_change_timestamp'] == datetime(2021, 1, 4)
+
+
+@freeze_time('2021-01-04')
+def test_attendee_hand_toggle_permission_error(
+        student_one,
+        student_one_profile,
+        attendees,
+):
+    response = student_one.put(
+        f"/api/v1/attendees/{attendees[1].id}/hand_toggle",
+    )
+    assert response.status_code == 401
+    assert response.json() == {
+        'detail': f"Attendee {attendees[1].id} doesn't belong to current user."
+    }
+
+    doc_fields = attendees[1].get().to_dict()
+    assert doc_fields['hand_up'] is False
+    assert doc_fields['hand_change_timestamp'] is None
+
