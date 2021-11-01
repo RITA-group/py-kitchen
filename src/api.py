@@ -41,7 +41,7 @@ def health_check():
     return {"status": "ok"}
 
 
-@router.get("/rooms/")
+@router.get("/rooms")
 def list_rooms(
         profile: schemas.Profile = Depends(deps.profile),
         db=Depends(deps.get_db)
@@ -53,7 +53,7 @@ def list_rooms(
 
 
 @router.post(
-    "/rooms/",
+    "/rooms",
     response_model=schemas.Room,
 )
 def create_room(
@@ -161,7 +161,7 @@ def delete_room(
 
 
 @router.get(
-    "/attendees/",
+    "/attendees",
     response_model=schemas.PaginationContainer,
 )
 def list_attendees(
@@ -178,7 +178,7 @@ def list_attendees(
 
 
 @router.post(
-    "/attendees/",
+    "/attendees",
     response_model=schemas.Attendee,
 )
 def create_attendee(
