@@ -8,6 +8,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 import dependencies as deps
 import schemas
 import crud, utils
+import messaging
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +58,9 @@ def list_rooms(
     response_model=schemas.Room,
 )
 def create_room(
-        room: schemas.RoomCreate,
-        db=Depends(deps.get_db),
-        profile: schemas.Profile = Depends(deps.profile),
+    room: schemas.RoomCreate,
+    db=Depends(deps.get_db),
+    profile: schemas.Profile = Depends(deps.profile),
 ):
     return crud.create_room(db, room, profile)
 
@@ -69,9 +70,9 @@ def create_room(
     response_model=schemas.Room,
 )
 def get_room(
-        room_id: str = Path(..., title="Room id"),
-        db=Depends(deps.get_db),
-        profile: schemas.Profile = Depends(deps.profile),
+    room_id: str = Path(..., title="Room id"),
+    db=Depends(deps.get_db),
+    profile: schemas.Profile = Depends(deps.profile),
 ):
     return fetch_room(room_id, db)
 
@@ -140,9 +141,9 @@ def next_attendee(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 def delete_room(
-        room_id: str = Path(..., title="Room id"),
-        db=Depends(deps.get_db),
-        profile: schemas.Profile = Depends(deps.profile),
+    room_id: str = Path(..., title="Room id"),
+    db=Depends(deps.get_db),
+    profile: schemas.Profile = Depends(deps.profile),
 ):
     try:
         room = crud.get_room(db, room_id)
@@ -165,10 +166,10 @@ def delete_room(
     response_model=schemas.PaginationContainer,
 )
 def list_attendees(
-        room_id: Optional[str] = Query(None, title='Room id'),
-        limit: int = Query(50, title='Number of results per request'),
-        db=Depends(deps.get_db),
-        profile: schemas.Profile = Depends(deps.profile),
+    room_id: Optional[str] = Query(None, title='Room id'),
+    limit: int = Query(50, title='Number of results per request'),
+    db=Depends(deps.get_db),
+    profile: schemas.Profile = Depends(deps.profile),
 ):
     attendees = crud.list_attendees(db, limit, room_id)
 
@@ -182,9 +183,9 @@ def list_attendees(
     response_model=schemas.Attendee,
 )
 def create_attendee(
-        data: schemas.NewAttendee,
-        db=Depends(deps.get_db),
-        profile: schemas.Profile = Depends(deps.profile),
+    data: schemas.NewAttendee,
+    db=Depends(deps.get_db),
+    profile: schemas.Profile = Depends(deps.profile),
 ):
     # check the room
     try:
@@ -209,9 +210,9 @@ def create_attendee(
 
 @router.delete("/attendees/{attendee_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_attendee(
-        attendee_id: str = Path(..., title="Attendee id"),
-        db=Depends(deps.get_db),
-        profile: schemas.Profile = Depends(deps.profile),
+    attendee_id: str = Path(..., title="Attendee id"),
+    db=Depends(deps.get_db),
+    profile: schemas.Profile = Depends(deps.profile),
 ):
     try:
         attendee = crud.get_attendee(db, attendee_id)
@@ -234,9 +235,9 @@ def delete_attendee(
     response_model=schemas.Attendee,
 )
 def get_attendee(
-        attendee_id: str = Path(..., title="Attendee id"),
-        db=Depends(deps.get_db),
-        profile: schemas.Profile = Depends(deps.profile),
+    attendee_id: str = Path(..., title="Attendee id"),
+    db=Depends(deps.get_db),
+    profile: schemas.Profile = Depends(deps.profile),
 ) -> schemas.Attendee:
     return fetch_attendee(attendee_id, db)
 
@@ -246,9 +247,10 @@ def get_attendee(
     response_model=schemas.Attendee,
 )
 def hand_toggle(
-        attendee_id: str = Path(..., title="Attendee id"),
-        db=Depends(deps.get_db),
-        profile: schemas.Profile = Depends(deps.profile),
+    attendee_id: str = Path(..., title="Attendee id"),
+    db=Depends(deps.get_db),
+    profile: schemas.Profile = Depends(deps.profile),
+    message: messaging.Message = Depends()
 ):
     attendee = crud.get_attendee(db, attendee_id)
     if attendee.profile_id != profile.id:
@@ -257,7 +259,12 @@ def hand_toggle(
             detail=f"Attendee {attendee.id} doesn't belong to current user."
         )
 
-    return crud.hand_toggle(db, attendee)
+    attendee = crud.hand_toggle(db, attendee)
+    message.instructor(
+        attendee.room_id,
+        {'test': 'test'},
+    )
+    return attendee
 
 
 @router.get(
@@ -265,9 +272,75 @@ def hand_toggle(
     response_model=schemas.Profile,
 )
 def get_profile(
-        profile: schemas.Profile = Depends(deps.profile),
+    profile: schemas.Profile = Depends(deps.profile),
 ):
     return profile
+
+
+@router.get(
+    "/profile/notification_tokens",
+    response_model=schemas.PaginationContainer,
+)
+def list_notification_tokens(
+        profile: schemas.Profile = Depends(deps.profile),
+        db=Depends(deps.get_db),
+):
+    return schemas.PaginationContainer(
+        results=crud.list_notification_tokens(db, profile.id)
+    )
+
+
+@router.post(
+    "/profile/notification_tokens",
+    response_model=schemas.NotificationToken,
+)
+def create_notification_token(
+    data: schemas.NotificationTokenAdd,
+    profile: schemas.Profile = Depends(deps.profile),
+    db=Depends(deps.get_db),
+):
+    try:
+        token = crud.get_notification_token(db, data.token)
+    except crud.NotFound:
+        pass
+    else:
+        if token.profile_id != profile.id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Token doesn't belong to current user."
+            )
+
+        return token
+
+    token = crud.create_notification_token(db, profile, data.token)
+    return token
+
+
+@router.delete(
+    "/profile/notification_tokens/{token}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_notification_token(
+    profile: schemas.Profile = Depends(deps.profile),
+    token: str = Path(..., title="Notification token string"),
+    db=Depends(deps.get_db),
+):
+    try:
+        token = crud.get_notification_token(db, token)
+    except crud.NotFound:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"{token} doesn't exist."
+        )
+
+    if token.profile_id != profile.id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Token doesn't belong to current user."
+        )
+
+    crud.delete_notification_token(db, token.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

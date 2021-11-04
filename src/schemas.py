@@ -62,3 +62,15 @@ class Attendee(BaseModel):
 
 class HandToggle(BaseModel):
     hand_up: bool = Field(..., example=True)
+
+
+class NotificationTokenAdd(BaseModel):
+    token: str
+
+
+class NotificationToken(BaseModel):
+    id: str
+    profile_id: str
+    created: datetime
+    message_count: int = 0
+    last_message_timestamp: datetime

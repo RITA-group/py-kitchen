@@ -114,7 +114,7 @@ def test_list_attendees_with_limit(instructor_one, rooms, attendees):
 @freeze_time('2021-01-01')
 def test_create_attendee(student_one, student_one_profile, rooms):
     response = student_one.post(
-        "/api/v1/attendees/",
+        "/api/v1/attendees",
         json={'room_id': rooms[1].id},
     )
     assert response.status_code == 200

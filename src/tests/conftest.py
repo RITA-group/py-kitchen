@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime
 from fastapi.testclient import TestClient
-from firebase_admin import auth
+from firebase_admin import auth, messaging
 from mockfirestore import MockFirestore
 from unittest.mock import MagicMock
 
@@ -13,6 +13,11 @@ def firestore():
     db = MockFirestore()
     yield db
     db.reset()
+
+
+@pytest.fixture
+def messaging():
+    return MagicMock(messaging)
 
 
 @pytest.fixture
@@ -56,9 +61,10 @@ def instructor_two_record() -> auth.UserRecord:
 
 
 @pytest.fixture
-def app(firestore):
+def app(firestore, messaging):
     api_app = factory.build_app()
     api_app.db = firestore
+    api_app.messaging_transport = messaging
     return api_app
 
 

@@ -8,7 +8,7 @@ def test_list_rooms(
         instructor_one_profile,
         instructor_two_profile,
 ):
-    response = student_one.get("/api/v1/rooms/")
+    response = student_one.get("/api/v1/rooms")
     assert response.status_code == 200
     assert response.json() == {
         "cursor": "not-implemented",
@@ -32,7 +32,7 @@ def test_list_rooms(
 @freeze_time('2021-01-01')
 def test_create_room(instructor_one, instructor_one_profile):
     response = instructor_one.post(
-        "/api/v1/rooms/",
+        "/api/v1/rooms",
         json={'name': 'test msd room'},
     )
     assert response.status_code == 200
