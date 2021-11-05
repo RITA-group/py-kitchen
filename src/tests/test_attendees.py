@@ -114,7 +114,7 @@ def test_list_attendees_with_limit(instructor_one, rooms, attendees):
 @freeze_time('2021-01-01')
 def test_create_attendee(student_one, student_one_profile, rooms):
     response = student_one.post(
-        "/api/v1/attendees/",
+        "/api/v1/attendees",
         json={'room_id': rooms[1].id},
     )
     assert response.status_code == 200
@@ -173,9 +173,9 @@ def test_delete_other_owner_attendee_failure(student_one, rooms, attendees, fire
 
 @freeze_time('2021-01-04')
 def test_attendee_hand_toggle(
-        student_one,
-        student_one_profile,
-        attendees,
+    student_one,
+    student_one_profile,
+    attendees,
 ):
     response = student_one.put(
         f"/api/v1/attendees/{attendees[0].id}/hand_toggle",
@@ -201,9 +201,9 @@ def test_attendee_hand_toggle(
 
 @freeze_time('2021-01-04')
 def test_attendee_hand_toggle_permission_error(
-        student_one,
-        student_one_profile,
-        attendees,
+    student_one,
+    student_one_profile,
+    attendees,
 ):
     response = student_one.put(
         f"/api/v1/attendees/{attendees[1].id}/hand_toggle",

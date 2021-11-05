@@ -3,12 +3,12 @@ from unittest.mock import ANY
 
 
 def test_list_rooms(
-        student_one,
-        rooms,
-        instructor_one_profile,
-        instructor_two_profile,
+    student_one,
+    rooms,
+    instructor_one_profile,
+    instructor_two_profile,
 ):
-    response = student_one.get("/api/v1/rooms/")
+    response = student_one.get("/api/v1/rooms")
     assert response.status_code == 200
     assert response.json() == {
         "cursor": "not-implemented",
@@ -32,7 +32,7 @@ def test_list_rooms(
 @freeze_time('2021-01-01')
 def test_create_room(instructor_one, instructor_one_profile):
     response = instructor_one.post(
-        "/api/v1/rooms/",
+        "/api/v1/rooms",
         json={'name': 'test msd room'},
     )
     assert response.status_code == 200
@@ -41,6 +41,24 @@ def test_create_room(instructor_one, instructor_one_profile):
         'name': 'test msd room',
         'profile_id': instructor_one_profile.id,
         'created': '2021-01-01T00:00:00',
+    }
+
+
+@freeze_time('2021-01-01')
+def test_create_room_name_too_short(instructor_one, instructor_one_profile):
+    response = instructor_one.post(
+        "/api/v1/rooms",
+        json={'name': 't'},
+    )
+    assert response.status_code == 422
+    assert response.json() == {
+        'detail': [
+            {
+                'loc': ['body', 'name'],
+                'msg': 'must be at least 2 characters long',
+                'type': 'value_error',
+            }
+        ]
     }
 
 

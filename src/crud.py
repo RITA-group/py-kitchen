@@ -12,6 +12,10 @@ class NotFound(Exception):
     pass
 
 
+class AlreadyExists(Exception):
+    pass
+
+
 def data_from_snapshot(doc: DocumentSnapshot) -> dict:
     data = {'id': doc.id}
     for key, value in doc.to_dict().items():
@@ -143,7 +147,7 @@ def get_attendee(
 def stop_all_answers(
     db: FirestoreDb,
     room_id: str,
-):
+) -> None:
     query = db.collection('attendees').where(
         'room_id', '==', room_id
     ).where(
@@ -183,6 +187,22 @@ def hand_toggle(
         }
     )
     return schemas.Attendee(**data_from_snapshot(ref.get()))
+
+
+def attendees_in_queue(
+    db: FirestoreDb,
+    room_id: str,
+    limit: int = 100
+) -> list[schemas.Attendee]:
+    query = db.collection('attendees')
+    query = query.where(
+        'room_id', '==', room_id
+    ).where(
+        'hand_up', '==', True
+    ).limit(limit)
+    docs = list(query.stream())
+
+    return [schemas.Attendee(**data_from_snapshot(doc)) for doc in docs]
 
 
 class OrderTypes(str, Enum):
@@ -235,3 +255,68 @@ class NextAttendee:
 
     def _random_in_room(self):
         return None
+
+
+def list_notification_tokens(
+    db: FirestoreDb,
+    profile_id: Optional[str] = None,
+) -> list[schemas.NotificationToken]:
+    query = db.collection('notification_tokens')
+    query = query.where(
+        'profile_id', '==', profile_id
+    )
+    docs = list(query.stream())
+
+    return [schemas.NotificationToken(**data_from_snapshot(doc)) for doc in docs]
+
+
+def get_notification_token(
+    db: FirestoreDb,
+    token: str,
+) -> schemas.NotificationToken:
+    ref = db.collection('notification_tokens').document(token)
+    doc = ref.get()
+    if not doc.exists:
+        raise NotFound
+
+    return schemas.NotificationToken(
+        **data_from_snapshot(doc)
+    )
+
+
+def create_notification_token(
+    db: FirestoreDb,
+    profile: schemas.Profile,
+    token: str,
+) -> schemas.NotificationToken:
+    ref = db.collection('notification_tokens').document(token)
+    ref.set({
+        'profile_id': profile.id,
+        'created': datetime.now(),
+        'message_count': 0,
+        'last_message_timestamp': None,
+    })
+    doc = ref.get()
+    return schemas.NotificationToken(
+        **data_from_snapshot(doc)
+    )
+
+
+def update_token_info(
+    db: FirestoreDb,
+    tokens: list[schemas.NotificationToken],
+):
+    for token in tokens:
+        ref = db.collection('notification_tokens').document(token.id)
+        ref.update({
+            'message_count': Increment(1),
+            'last_message_timestamp': datetime.now()
+        })
+
+
+def delete_notification_token(
+    db: FirestoreDb,
+    token: str,
+) -> None:
+    db.collection('notification_tokens').document(token).delete()
+
