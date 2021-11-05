@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator, ValidationError
 from typing import Optional, List
 from datetime import datetime
 
@@ -17,6 +17,12 @@ class RoomBase(BaseModel):
         ...,
         example="MSD course"
     )
+
+    @validator('name')
+    def name_length(cls, v):
+        if len(v) < 3:
+            raise ValueError('must be at least 2 characters long')
+        return v
 
 
 class RoomCreate(RoomBase):

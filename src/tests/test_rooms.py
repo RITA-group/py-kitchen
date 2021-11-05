@@ -44,6 +44,24 @@ def test_create_room(instructor_one, instructor_one_profile):
     }
 
 
+@freeze_time('2021-01-01')
+def test_create_room_name_too_short(instructor_one, instructor_one_profile):
+    response = instructor_one.post(
+        "/api/v1/rooms",
+        json={'name': 't'},
+    )
+    assert response.status_code == 422
+    assert response.json() == {
+        'detail': [
+            {
+                'loc': ['body', 'name'],
+                'msg': 'must be at least 2 characters long',
+                'type': 'value_error',
+            }
+        ]
+    }
+
+
 def test_delete_room(instructor_one, rooms, firestore):
     response = instructor_one.delete(f"/api/v1/rooms/{rooms[0].id}")
     assert response.status_code == 204
