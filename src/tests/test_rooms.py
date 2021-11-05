@@ -3,10 +3,10 @@ from unittest.mock import ANY
 
 
 def test_list_rooms(
-        student_one,
-        rooms,
-        instructor_one_profile,
-        instructor_two_profile,
+    student_one,
+    rooms,
+    instructor_one_profile,
+    instructor_two_profile,
 ):
     response = student_one.get("/api/v1/rooms")
     assert response.status_code == 200

@@ -16,8 +16,18 @@ def firestore():
 
 
 @pytest.fixture
-def messaging():
-    return MagicMock(messaging)
+def send_multicast_success_count():
+    return 0
+
+
+@pytest.fixture
+def messaging_transport(send_multicast_success_count):
+    transport = MagicMock(messaging)
+    response = MagicMock()
+    response.success_count = send_multicast_success_count
+    send_multicast = MagicMock(return_value=response)
+    transport.send_multicast = send_multicast
+    return transport
 
 
 @pytest.fixture
@@ -61,10 +71,10 @@ def instructor_two_record() -> auth.UserRecord:
 
 
 @pytest.fixture
-def app(firestore, messaging):
+def app(firestore, messaging_transport):
     api_app = factory.build_app()
     api_app.db = firestore
-    api_app.messaging_transport = messaging
+    api_app.messaging_transport = messaging_transport
     return api_app
 
 

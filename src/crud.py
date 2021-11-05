@@ -147,7 +147,7 @@ def get_attendee(
 def stop_all_answers(
     db: FirestoreDb,
     room_id: str,
-):
+) -> None:
     query = db.collection('attendees').where(
         'room_id', '==', room_id
     ).where(
@@ -187,6 +187,22 @@ def hand_toggle(
         }
     )
     return schemas.Attendee(**data_from_snapshot(ref.get()))
+
+
+def attendees_in_queue(
+    db: FirestoreDb,
+    room_id: str,
+    limit: int = 100
+) -> list[schemas.Attendee]:
+    query = db.collection('attendees')
+    query = query.where(
+        'room_id', '==', room_id
+    ).where(
+        'hand_up', '==', True
+    ).limit(limit)
+    docs = list(query.stream())
+
+    return [schemas.Attendee(**data_from_snapshot(doc)) for doc in docs]
 
 
 class OrderTypes(str, Enum):
@@ -290,8 +306,12 @@ def update_token_info(
     db: FirestoreDb,
     tokens: list[schemas.NotificationToken],
 ):
-    # TODO: update count and timestamp
-    pass
+    for token in tokens:
+        ref = db.collection('notification_tokens').document(token.id)
+        ref.update({
+            'message_count': Increment(1),
+            'last_message_timestamp': datetime.now()
+        })
 
 
 def delete_notification_token(

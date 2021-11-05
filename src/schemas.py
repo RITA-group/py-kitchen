@@ -73,4 +73,4 @@ class NotificationToken(BaseModel):
     profile_id: str
     created: datetime
     message_count: int = 0
-    last_message_timestamp: datetime
+    last_message_timestamp: Optional[datetime]

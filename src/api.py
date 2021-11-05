@@ -258,12 +258,9 @@ def hand_toggle(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Attendee {attendee.id} doesn't belong to current user."
         )
-
     attendee = crud.hand_toggle(db, attendee)
-    message.instructor(
-        attendee.room_id,
-        {'test': 'test'},
-    )
+    message.maybe_notify_instructor(attendee)
+
     return attendee
 
 
@@ -286,7 +283,9 @@ def list_notification_tokens(
         db=Depends(deps.get_db),
 ):
     return schemas.PaginationContainer(
-        results=crud.list_notification_tokens(db, profile.id)
+        result=crud.list_notification_tokens(
+            db, profile.id
+        )
     )
 
 

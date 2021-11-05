@@ -1,4 +1,4 @@
-from firebase_admin import auth, initialize_app, firestore
+from firebase_admin import auth, initialize_app, firestore, messaging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -37,4 +37,5 @@ def prod_app():
     initialize_app()
     app.auth = auth
     app.db = firestore.client()
+    app.messaging_transport = messaging
     return app
