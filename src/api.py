@@ -104,9 +104,11 @@ def next_attendee(
 ):
     # Only owner can call next attendee
     if room.profile_id != profile.id:
+        msg = f"Room {room.id} doesn't belong to current user."
+        logger.warning(msg)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Room {room.id} doesn't belong to current user."
+            detail=msg,
         )
 
     if order == controller.OrderTypes.specific_attendee and not attendee_id:
@@ -157,9 +159,11 @@ def delete_room(
             detail=f"Room with {room_id} id doesn't exist."
         )
     if room.profile_id != profile.id:
+        msg = f"Room {room.id} doesn't belong to current user."
+        logger.warning(msg)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Room {room_id} doesn't belong to current user."
+            detail=msg,
         )
     crud.delete_room(room_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -226,9 +230,11 @@ def delete_attendee(
             detail=f"Attendee with {attendee_id} id doesn't exist."
         )
     if attendee.profile_id != profile.id:
+        msg = f"Attendee {attendee.id} doesn't belong to current user."
+        logger.warning(msg)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Attendee {attendee.id} doesn't belong to current user."
+            detail=msg,
         )
     crud.delete_attendee(attendee.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -256,9 +262,11 @@ def hand_toggle(
     message: messaging.Message = Depends()
 ):
     if attendee.profile_id != profile.id:
+        msg = f"Attendee {attendee.id} doesn't belong to current user."
+        logger.warning(msg)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Attendee {attendee.id} doesn't belong to current user."
+            detail=msg,
         )
     updated_attendee = crud.hand_toggle(attendee)
     message.maybe_notify_instructor(updated_attendee)
@@ -304,9 +312,11 @@ def create_notification_token(
         pass
     else:
         if token.profile_id != profile.id:
+            msg = f"Token doesn't belong to current user."
+            logger.warning(msg)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Token doesn't belong to current user."
+                detail=msg,
             )
 
         return token
@@ -333,9 +343,11 @@ def delete_notification_token(
         )
 
     if token.profile_id != profile.id:
+        msg = f"Token doesn't belong to current user."
+        logger.warning(msg)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Token doesn't belong to current user."
+            detail=msg,
         )
 
     crud.delete_notification_token(token.id)
