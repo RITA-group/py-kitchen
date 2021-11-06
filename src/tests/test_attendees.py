@@ -164,7 +164,7 @@ def test_delete_attendee(student_one, rooms, attendees, firestore):
 def test_delete_other_owner_attendee_failure(student_one, rooms, attendees, firestore):
     attendee_id = attendees[1].id
     response = student_one.delete(f"/api/v1/attendees/{attendee_id}")
-    assert response.status_code == 401
+    assert response.status_code == 403
 
     ref = firestore.collection('attendees').document(attendee_id)
     doc = ref.get()
@@ -208,7 +208,7 @@ def test_attendee_hand_toggle_permission_error(
     response = student_one.put(
         f"/api/v1/attendees/{attendees[1].id}/hand_toggle",
     )
-    assert response.status_code == 401
+    assert response.status_code == 403
     assert response.json() == {
         'detail': f"Attendee {attendees[1].id} doesn't belong to current user."
     }

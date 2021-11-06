@@ -1,6 +1,11 @@
+import logging
 import json
 import requests
+from fastapi import status, HTTPException
 import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_user_token_from(custom_token) -> dict:
@@ -30,3 +35,11 @@ def get_user_token_from(custom_token) -> dict:
     )
 
     return resp.json()
+
+
+def raise_forbidden(msg):
+    logger.warning(msg)
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=msg,
+    )

@@ -5,12 +5,14 @@ from fastapi import status, HTTPException, Depends, Path, Query
 from fastapi.responses import Response
 from fastapi.security import OAuth2PasswordRequestForm
 
-import dependencies as deps
+import authorization
 import schemas
 import controller
 import messaging
 import services
 import utils
+
+from utils import raise_forbidden
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +54,8 @@ def health_check():
 
 @router.get("/rooms")
 def list_rooms(
-        profile: schemas.Profile = Depends(deps.profile),
-        crud: controller.Crud = Depends(),
+    auth: authorization.Auth = Depends(),
+    crud: controller.Crud = Depends(),
 ):
     container = schemas.PaginationContainer(
         result=crud.list_rooms(),
@@ -67,10 +69,11 @@ def list_rooms(
 )
 def create_room(
     room: schemas.RoomCreate,
+
+    auth: authorization.Auth = Depends(),
     crud: controller.Crud = Depends(),
-    profile: schemas.Profile = Depends(deps.profile),
 ):
-    return crud.create_room(room, profile)
+    return crud.create_room(room, auth.profile)
 
 
 @router.get(
@@ -79,7 +82,8 @@ def create_room(
 )
 def get_room(
     room: schemas.Room = Depends(fetch_room),
-    profile: schemas.Profile = Depends(deps.profile),
+
+    auth: authorization.Auth = Depends(),
 ):
     return room
 
@@ -98,18 +102,14 @@ def next_attendee(
         controller.OrderTypes.least_answers,
         title='Algorithm used to pick the next attendee.'
     ),
+
+    auth: authorization.Auth = Depends(),
     crud: controller.Crud = Depends(),
     picker: controller.NextAttendee = Depends(),
-    profile: schemas.Profile = Depends(deps.profile),
 ):
     # Only owner can call next attendee
-    if room.profile_id != profile.id:
-        msg = f"Room {room.id} doesn't belong to current user."
-        logger.warning(msg)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=msg,
-        )
+    if room.profile_id != auth.profile.id:
+        raise_forbidden(f"Room {room.id} doesn't belong to current user.")
 
     if order == controller.OrderTypes.specific_attendee and not attendee_id:
         raise HTTPException(
@@ -148,8 +148,9 @@ def next_attendee(
 )
 def delete_room(
     room_id: str = Path(..., title="Room id"),
+
+    auth: authorization.Auth = Depends(),
     crud: controller.Crud = Depends(),
-    profile: schemas.Profile = Depends(deps.profile),
 ):
     try:
         room = crud.get_room(room_id)
@@ -158,13 +159,9 @@ def delete_room(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Room with {room_id} id doesn't exist."
         )
-    if room.profile_id != profile.id:
-        msg = f"Room {room.id} doesn't belong to current user."
-        logger.warning(msg)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=msg,
-        )
+    if room.profile_id != auth.profile.id:
+        raise_forbidden(f"Room {room.id} doesn't belong to current user.")
+
     crud.delete_room(room_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -176,8 +173,9 @@ def delete_room(
 def list_attendees(
     room_id: Optional[str] = Query(None, title='Room id'),
     limit: int = Query(50, title='Number of results per request'),
+
+    auth: authorization.Auth = Depends(),
     crud: controller.Crud = Depends(),
-    profile: schemas.Profile = Depends(deps.profile),
 ):
     attendees = crud.list_attendees(limit, room_id)
 
@@ -192,8 +190,9 @@ def list_attendees(
 )
 def create_attendee(
     data: schemas.NewAttendee,
+
+    auth: authorization.Auth = Depends(),
     crud: controller.Crud = Depends(),
-    profile: schemas.Profile = Depends(deps.profile),
 ):
     # check the room
     try:
@@ -206,21 +205,22 @@ def create_attendee(
 
     # check if already added
     if crud.list_attendees(
-        limit=1, room_id=data.room_id, profile_id=profile.id,
+        limit=1, room_id=data.room_id, profile_id=auth.profile.id,
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Profile with {profile.id} id already joined {data.room_id} room."
+            detail=f"Profile with {auth.profile.id} id already joined {data.room_id} room."
         )
 
-    return crud.create_attendee(data.room_id, profile)
+    return crud.create_attendee(data.room_id, auth.profile)
 
 
 @router.delete("/attendees/{attendee_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_attendee(
     attendee_id: str = Path(..., title="Attendee id"),
+
+    auth: authorization.Auth = Depends(),
     crud: controller.Crud = Depends(),
-    profile: schemas.Profile = Depends(deps.profile),
 ):
     try:
         attendee = crud.get_attendee(attendee_id)
@@ -229,13 +229,9 @@ def delete_attendee(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Attendee with {attendee_id} id doesn't exist."
         )
-    if attendee.profile_id != profile.id:
-        msg = f"Attendee {attendee.id} doesn't belong to current user."
-        logger.warning(msg)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=msg,
-        )
+    if attendee.profile_id != auth.profile.id:
+        raise_forbidden(f"Attendee {attendee.id} doesn't belong to current user.")
+
     crud.delete_attendee(attendee.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -245,8 +241,8 @@ def delete_attendee(
     response_model=schemas.Attendee,
 )
 def get_attendee(
+    auth: authorization.Auth = Depends(),
     attendee: schemas.Attendee = Depends(fetch_attendee),
-    profile: schemas.Profile = Depends(deps.profile),
 ) -> schemas.Attendee:
     return attendee
 
@@ -256,18 +252,14 @@ def get_attendee(
     response_model=schemas.Attendee,
 )
 def hand_toggle(
+    auth: authorization.Auth = Depends(),
     attendee: schemas.Attendee = Depends(fetch_attendee),
     crud: controller.Crud = Depends(),
-    profile: schemas.Profile = Depends(deps.profile),
     message: messaging.Message = Depends()
 ):
-    if attendee.profile_id != profile.id:
-        msg = f"Attendee {attendee.id} doesn't belong to current user."
-        logger.warning(msg)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=msg,
-        )
+    if attendee.profile_id != auth.profile.id:
+        raise_forbidden(f"Attendee {attendee.id} doesn't belong to current user.")
+
     updated_attendee = crud.hand_toggle(attendee)
     message.maybe_notify_instructor(updated_attendee)
 
@@ -279,9 +271,9 @@ def hand_toggle(
     response_model=schemas.Profile,
 )
 def get_profile(
-    profile: schemas.Profile = Depends(deps.profile),
+    auth: authorization.Auth = Depends(),
 ):
-    return profile
+    return auth.profile
 
 
 @router.get(
@@ -289,11 +281,11 @@ def get_profile(
     response_model=schemas.PaginationContainer,
 )
 def list_notification_tokens(
-    profile: schemas.Profile = Depends(deps.profile),
+    auth: authorization.Auth = Depends(),
     crud: controller.Crud = Depends(),
 ):
     return schemas.PaginationContainer(
-        result=crud.list_notification_tokens(profile.id)
+        result=crud.list_notification_tokens(auth.profile.id)
     )
 
 
@@ -303,7 +295,8 @@ def list_notification_tokens(
 )
 def create_notification_token(
     data: schemas.NotificationTokenAdd,
-    profile: schemas.Profile = Depends(deps.profile),
+
+    auth: authorization.Auth = Depends(),
     crud: controller.Crud = Depends(),
 ):
     try:
@@ -311,17 +304,12 @@ def create_notification_token(
     except controller.NotFound:
         pass
     else:
-        if token.profile_id != profile.id:
-            msg = f"Token doesn't belong to current user."
-            logger.warning(msg)
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=msg,
-            )
+        if token.profile_id != auth.profile.id:
+            raise_forbidden(f"Token doesn't belong to current user.")
 
         return token
 
-    token = crud.create_notification_token(profile, data.token)
+    token = crud.create_notification_token(auth.profile, data.token)
     return token
 
 
@@ -330,8 +318,9 @@ def create_notification_token(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 def delete_notification_token(
-    profile: schemas.Profile = Depends(deps.profile),
     token: str = Path(..., title="Notification token string"),
+
+    auth: authorization.Auth = Depends(),
     crud: controller.Crud = Depends(),
 ):
     try:
@@ -342,13 +331,8 @@ def delete_notification_token(
             detail=f"{token} doesn't exist."
         )
 
-    if token.profile_id != profile.id:
-        msg = f"Token doesn't belong to current user."
-        logger.warning(msg)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=msg,
-        )
+    if token.profile_id != auth.profile.id:
+        raise_forbidden(f"Token doesn't belong to current user.")
 
     crud.delete_notification_token(token.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

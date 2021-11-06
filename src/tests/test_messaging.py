@@ -146,7 +146,7 @@ def test_delete_other_owner_token_failure(
     response = instructor_one.delete(
         f"/api/v1/profile/notification_tokens/xyz"
     )
-    assert response.status_code == 401
+    assert response.status_code == 403
     assert response.json() == {
         'detail': "Token doesn't belong to current user.",
     }

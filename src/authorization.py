@@ -1,12 +1,11 @@
 import logging
 from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
+from firebase_admin.auth import UserRecord, UserNotFoundError
 
 import controller
-import schemas
 import services
 
-from firebase_admin.auth import UserRecord, UserNotFoundError
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 logger = logging.getLogger(__name__)
@@ -32,12 +31,12 @@ def uid_from_authorization_token(
     return decoded_token['uid']
 
 
-def user(
+def user_record(
     uid: str = Depends(uid_from_authorization_token),
     auth=Depends(services.auth_transport)
 ) -> UserRecord:
     try:
-        user_record = auth.get_user(uid)
+        record = auth.get_user(uid)
     except UserNotFoundError as e:
         msg = f"User is not registered with the app: {repr(e)}"
         logger.warning(f"User is not registered with the app: {repr(e)}")
@@ -45,12 +44,15 @@ def user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=msg,
         )
+    return record
 
-    return user_record
 
-
-def profile(
-    crud: controller.Crud = Depends(),
-    user_record=Depends(user),
-) -> schemas.Profile:
-    return crud.get_or_create_profile(user_record)
+class Auth:
+    def __init__(
+        self,
+        firebase_auth=Depends(services.auth_transport),
+        user: UserRecord = Depends(user_record),
+        crud: controller.Crud = Depends(),
+    ):
+        self.profile = crud.get_or_create_profile(user)
+        self._transport = firebase_auth

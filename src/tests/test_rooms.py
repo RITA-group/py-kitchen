@@ -75,7 +75,7 @@ def test_delete_room(instructor_one, rooms, firestore):
 
 def test_delete_other_owner_room_failure(instructor_one, rooms, firestore):
     response = instructor_one.delete(f"/api/v1/rooms/{rooms[1].id}")
-    assert response.status_code == 401
+    assert response.status_code == 403
     assert response.json() == {
         'detail': f"Room {rooms[1].id} doesn't belong to current user."
     }
