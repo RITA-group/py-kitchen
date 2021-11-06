@@ -1,23 +1,18 @@
-from fastapi import Request, Depends
-from google.cloud.firestore import Client as FirestoreDb
+from fastapi import Depends
 from firebase_admin import messaging as messaging_transport
 
-import dependencies
-import crud
+import controller
+import services
 import schemas
-
-
-def get_transport(request: Request) -> messaging_transport:
-    return request.app.messaging_transport
 
 
 class Message:
     def __init__(
         self,
-        db: FirestoreDb = Depends(dependencies.get_db),
-        transport: messaging_transport = Depends(get_transport)
+        crud: controller.Crud = Depends(),
+        transport: messaging_transport = Depends(services.messaging_transport)
     ):
-        self.db = db
+        self.crud = crud
         self.transport = transport
 
     def send(
@@ -35,7 +30,7 @@ class Message:
             #raise RuntimeError
             pass
 
-        crud.update_token_info(self.db, tokens)
+        self.crud.update_token_info(tokens)
 
     def maybe_notify_instructor(
         self,
@@ -45,15 +40,13 @@ class Message:
             # Not raising hand
             return False
 
-        in_queue = crud.attendees_in_queue(
-            self.db, attendee.room_id, limit=2
-        )
+        in_queue = self.crud.attendees_in_queue(attendee.room_id, limit=2)
         if len(in_queue) >= 2:
             # at least 2 attendees in queue
             return False
 
-        room = crud.get_room(self.db, attendee.room_id)
-        tokens = crud.list_notification_tokens(self.db, room.profile_id)
+        room = self.crud.get_room(attendee.room_id)
+        tokens = self.crud.list_notification_tokens(room.profile_id)
         if not tokens:
             # Profile has no associated notification tokens
             return False

@@ -1,28 +1,21 @@
-from fastapi import Request, HTTPException, status, Depends
+from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
 
-import crud
+import controller
 import schemas
+import services
 
 from firebase_admin.auth import UserRecord, UserNotFoundError
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
-def get_auth(request: Request):
-    return request.app.auth
-
-
-def get_db(request: Request):
-    return request.app.db
-
-
 def uid_from_authorization_token(
-    request: Request,
+    auth=Depends(services.auth_transport),
     token: str = Depends(oauth2_scheme),
 ) -> str:
     try:
-        decoded_token = request.app.auth.verify_id_token(token)
+        decoded_token = auth.verify_id_token(token)
     except Exception as e:
         # verify_id_token can raise a bunch of different errors
         # For now we just catch them all and report it in detail with 401 status.
@@ -37,7 +30,7 @@ def uid_from_authorization_token(
 
 def user(
     uid: str = Depends(uid_from_authorization_token),
-    auth=Depends(get_auth)
+    auth=Depends(services.auth_transport)
 ) -> UserRecord:
     try:
         user_record = auth.get_user(uid)
@@ -51,10 +44,7 @@ def user(
 
 
 def profile(
-    db=Depends(get_db),
+    crud: controller.Crud = Depends(),
     user_record=Depends(user),
 ) -> schemas.Profile:
-    return crud.get_or_create_profile(
-        db,
-        user_record,
-    )
+    return crud.get_or_create_profile(user_record)

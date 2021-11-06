@@ -5,7 +5,7 @@ from firebase_admin import auth, messaging
 from mockfirestore import MockFirestore
 from unittest.mock import MagicMock
 
-from src import factory, crud
+from src import factory, schemas
 
 
 @pytest.fixture
@@ -73,8 +73,9 @@ def instructor_two_record() -> auth.UserRecord:
 @pytest.fixture
 def app(firestore, messaging_transport):
     api_app = factory.build_app()
-    api_app.db = firestore
+    api_app.firestore_transport = firestore
     api_app.messaging_transport = messaging_transport
+    api_app.auth_transport = MagicMock(auth)
     return api_app
 
 
@@ -90,7 +91,7 @@ def student_one(app, student_one_record):
     mock_auth.verify_id_token.return_value = {'uid': student_one_record.uid}
     mock_auth.get_user = MagicMock(return_value=student_one_record)
 
-    app.auth = mock_auth
+    app.auth_transport = mock_auth
     client = TestClient(app)
     client.headers.update(
         {'Authorization': f'Bearer {student_one_record.uid}_token'}
@@ -105,7 +106,7 @@ def instructor_one(app, instructor_one_record):
     mock_auth.verify_id_token.return_value = {'uid': instructor_one_record.uid}
     mock_auth.get_user = MagicMock(return_value=instructor_one_record)
 
-    app.auth = mock_auth
+    app.auth_transport = mock_auth
     client = TestClient(app)
     client.headers.update(
         {'Authorization': f'Bearer {instructor_one_record.uid}_token'}
@@ -120,7 +121,7 @@ def instructor_two(app, instructor_two_record):
     mock_auth.verify_id_token.return_value = {'uid': instructor_two_record.uid}
     mock_auth.get_user = MagicMock(return_value=instructor_two_record)
 
-    app.auth = mock_auth
+    app.auth_transport = mock_auth
     client = TestClient(app)
     client.headers.update(
         {'Authorization': f'Bearer {instructor_two_record.uid}_token'}
@@ -129,23 +130,35 @@ def instructor_two(app, instructor_two_record):
 
 
 @pytest.fixture
-def student_one_profile(firestore, student_one_record):
-    return crud.get_or_create_profile(firestore, student_one_record)
+def create_profile(firestore):
+    def add_profile(user_record):
+        ref = firestore.collection('profiles').document(user_record.uid)
+        ref.set({
+            'display_name': user_record.display_name,
+            'notification_token': None,
+        })
+        return schemas.Profile.from_snapshot(ref.get())
+    return add_profile
 
 
 @pytest.fixture
-def student_two_profile(firestore, student_two_record):
-    return crud.get_or_create_profile(firestore, student_two_record)
+def student_one_profile(student_one_record, create_profile):
+    return create_profile(student_one_record)
 
 
 @pytest.fixture
-def instructor_one_profile(firestore, instructor_one_record):
-    return crud.get_or_create_profile(firestore, instructor_one_record)
+def student_two_profile(student_two_record, create_profile):
+    return create_profile(student_two_record)
 
 
 @pytest.fixture
-def instructor_two_profile(firestore, instructor_two_record):
-    return crud.get_or_create_profile(firestore, instructor_two_record)
+def instructor_one_profile(instructor_one_record, create_profile):
+    return create_profile(instructor_one_record)
+
+
+@pytest.fixture
+def instructor_two_profile(instructor_two_record, create_profile):
+    return create_profile(instructor_two_record)
 
 
 @pytest.fixture

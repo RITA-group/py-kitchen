@@ -52,13 +52,15 @@ def test_create_room_name_too_short(instructor_one, instructor_one_profile):
     )
     assert response.status_code == 422
     assert response.json() == {
-        'detail': [
-            {
-                'loc': ['body', 'name'],
-                'msg': 'must be at least 2 characters long',
-                'type': 'value_error',
-            }
-        ]
+        'detail':
+            [
+                {
+                    'ctx': {'limit_value': 3},
+                    'loc': ['body', 'name'],
+                    'msg': 'ensure this value has at least 3 characters',
+                    'type': 'value_error.any_str.min_length',
+                }
+            ]
     }
 
 

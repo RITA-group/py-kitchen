@@ -3,13 +3,10 @@ from unittest.mock import ANY
 from datetime import datetime
 from firebase_admin import auth
 
-from src import crud
-
 
 @pytest.fixture
-def current_answer(firestore, rooms):
-    profile = crud.get_or_create_profile(
-        firestore,
+def current_answer(firestore, rooms, create_profile):
+    profile = create_profile(
         auth.UserRecord({
             'localId': 'current_answer',
             'displayName': 'Current Answer',

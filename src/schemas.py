@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, validator, ValidationError
-from typing import Optional, List
+from typing import Optional
 from datetime import datetime
+from google.cloud.firestore import DocumentSnapshot
 
 
 class PaginationContainer(BaseModel):
@@ -12,17 +13,23 @@ class PaginationContainer(BaseModel):
     cursor: str = 'not-implemented'
 
 
-class RoomBase(BaseModel):
+class FirebaseModel(BaseModel):
+    @classmethod
+    def from_snapshot(cls, doc: DocumentSnapshot):
+        data = {'id': doc.id}
+        for key, value in doc.to_dict().items():
+            if hasattr(value, 'id'):
+                value = value.id
+            data[key] = value
+        return cls(**data)
+
+
+class RoomBase(FirebaseModel):
     name: str = Field(
         ...,
-        example="MSD course"
+        min_length=3,
+        example="MSD course",
     )
-
-    @validator('name')
-    def name_length(cls, v):
-        if len(v) < 3:
-            raise ValueError('must be at least 2 characters long')
-        return v
 
 
 class RoomCreate(RoomBase):
@@ -35,7 +42,7 @@ class Room(RoomBase):
     created: datetime
 
 
-class ProfileBase(BaseModel):
+class ProfileBase(FirebaseModel):
     notification_token: Optional[str] = Field(
         ...,
         example="abcD_someletters-numbers:SUPER_long_key_goesHERE"
@@ -47,11 +54,11 @@ class Profile(ProfileBase):
     display_name: str
 
 
-class NewAttendee(BaseModel):
+class NewAttendee(FirebaseModel):
     room_id: str = Field(..., example='abcxyz')
 
 
-class Attendee(BaseModel):
+class Attendee(FirebaseModel):
     id: str
     name: str
     profile_id: str
@@ -66,15 +73,15 @@ class Attendee(BaseModel):
     peer_likes: int = 0
 
 
-class HandToggle(BaseModel):
+class HandToggle(FirebaseModel):
     hand_up: bool = Field(..., example=True)
 
 
-class NotificationTokenAdd(BaseModel):
+class NotificationTokenAdd(FirebaseModel):
     token: str
 
 
-class NotificationToken(BaseModel):
+class NotificationToken(FirebaseModel):
     id: str
     profile_id: str
     created: datetime

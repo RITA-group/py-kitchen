@@ -1,9 +1,10 @@
-from firebase_admin import auth, initialize_app, firestore, messaging
+from firebase_admin import initialize_app
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from middleware import CacheControlHeader
 from api import router
+import services
 import settings
 
 
@@ -33,9 +34,7 @@ def build_app():
 
 
 def prod_app():
-    app = build_app()
     initialize_app()
-    app.auth = auth
-    app.db = firestore.client()
-    app.messaging_transport = messaging
+    app = build_app()
+    app = services.add_dependencies(app)
     return app

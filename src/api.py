@@ -7,18 +7,23 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 import dependencies as deps
 import schemas
-import crud, utils
+import controller
 import messaging
+import services
+import utils
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-def fetch_attendee(attendee_id: str, db) -> schemas.Attendee:
+def fetch_attendee(
+    attendee_id: str = Path(..., title="Attendee id"),
+    crud: controller.Crud = Depends(),
+) -> schemas.Attendee:
     try:
-        attendee = crud.get_attendee(db, attendee_id)
-    except crud.NotFound:
+        attendee = crud.get_attendee(attendee_id)
+    except controller.NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Attendee with {attendee_id} id doesn't exist."
@@ -26,10 +31,13 @@ def fetch_attendee(attendee_id: str, db) -> schemas.Attendee:
     return attendee
 
 
-def fetch_room(room_id: str, db) -> schemas.Room:
+def fetch_room(
+    room_id: str = Path(..., title="Room id"),
+    crud: controller.Crud = Depends(),
+) -> schemas.Room:
     try:
-        room = crud.get_room(db, room_id)
-    except crud.NotFound:
+        room = crud.get_room(room_id)
+    except controller.NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Room with {room_id} id doesn't exist."
@@ -45,10 +53,10 @@ def health_check():
 @router.get("/rooms")
 def list_rooms(
         profile: schemas.Profile = Depends(deps.profile),
-        db=Depends(deps.get_db)
+        crud: controller.Crud = Depends(),
 ):
     container = schemas.PaginationContainer(
-        result=crud.list_rooms(db),
+        result=crud.list_rooms(),
     )
     return container
 
@@ -59,10 +67,10 @@ def list_rooms(
 )
 def create_room(
     room: schemas.RoomCreate,
-    db=Depends(deps.get_db),
+    crud: controller.Crud = Depends(),
     profile: schemas.Profile = Depends(deps.profile),
 ):
-    return crud.create_room(db, room, profile)
+    return crud.create_room(room, profile)
 
 
 @router.get(
@@ -70,11 +78,10 @@ def create_room(
     response_model=schemas.Room,
 )
 def get_room(
-    room_id: str = Path(..., title="Room id"),
-    db=Depends(deps.get_db),
+    room: schemas.Room = Depends(fetch_room),
     profile: schemas.Profile = Depends(deps.profile),
 ):
-    return fetch_room(room_id, db)
+    return room
 
 
 @router.get(
@@ -82,36 +89,36 @@ def get_room(
     response_model=Optional[schemas.Attendee],
 )
 def next_attendee(
-    room_id: str = Path(..., title="Room id"),
     attendee_id: Optional[str] = Query(
         None,
         title='Force a specific attendee.'
     ),
-    order: crud.OrderTypes = Query(
-        crud.OrderTypes.least_answers,
+    room: schemas.Room = Depends(fetch_room),
+    order: controller.OrderTypes = Query(
+        controller.OrderTypes.least_answers,
         title='Algorithm used to pick the next attendee.'
     ),
-    db=Depends(deps.get_db),
+    crud: controller.Crud = Depends(),
+    picker: controller.NextAttendee = Depends(),
     profile: schemas.Profile = Depends(deps.profile),
 ):
     # Only owner can call next attendee
-    room = fetch_room(room_id, db)
     if room.profile_id != profile.id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Room {room_id} doesn't belong to current user."
+            detail=f"Room {room.id} doesn't belong to current user."
         )
 
-    if order == crud.OrderTypes.specific_attendee and not attendee_id:
+    if order == controller.OrderTypes.specific_attendee and not attendee_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"If {crud.OrderTypes.specific_attendee} is selected, "
+            detail=f"If {controller.OrderTypes.specific_attendee} is selected, "
                    f"attendee_id must be provided."
         )
 
     if attendee_id:
         # make sure attendee exists
-        attendee = fetch_attendee(attendee_id, db)
+        attendee = fetch_attendee(attendee_id, crud)
         # Validate the attendee belongs to the room it's assigned
         if attendee.room_id != room.id:
             raise HTTPException(
@@ -119,21 +126,18 @@ def next_attendee(
                 detail=f"Attendee with {attendee_id} is not in the room."
             )
         # Assume the specific attendee is needed since id was provided
-        order = crud.OrderTypes.specific_attendee
-        picker = crud.NextAttendee(db, room_id, attendee)
-    else:
-        picker = crud.NextAttendee(db, room_id)
+        picker.order = controller.OrderTypes.specific_attendee
 
     try:
-        attendee = picker(order)
-    except crud.NotFound:
+        next_in_queue = picker.next_attendee()
+    except controller.NotFound:
         return None
     finally:
         # even if there is no next attendee we stop all previous answers
-        crud.stop_all_answers(db, room.id)
+        crud.stop_all_answers(room.id)
 
-    crud.start_answer(db, attendee.id)
-    return crud.get_attendee(db, attendee.id)
+    crud.start_answer(next_in_queue.id)
+    return crud.get_attendee(next_in_queue.id)
 
 
 @router.delete(
@@ -142,12 +146,12 @@ def next_attendee(
 )
 def delete_room(
     room_id: str = Path(..., title="Room id"),
-    db=Depends(deps.get_db),
+    crud: controller.Crud = Depends(),
     profile: schemas.Profile = Depends(deps.profile),
 ):
     try:
-        room = crud.get_room(db, room_id)
-    except crud.NotFound:
+        room = crud.get_room(room_id)
+    except controller.NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Room with {room_id} id doesn't exist."
@@ -157,7 +161,7 @@ def delete_room(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Room {room_id} doesn't belong to current user."
         )
-    crud.delete_room(db, room_id)
+    crud.delete_room(room_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -168,10 +172,10 @@ def delete_room(
 def list_attendees(
     room_id: Optional[str] = Query(None, title='Room id'),
     limit: int = Query(50, title='Number of results per request'),
-    db=Depends(deps.get_db),
+    crud: controller.Crud = Depends(),
     profile: schemas.Profile = Depends(deps.profile),
 ):
-    attendees = crud.list_attendees(db, limit, room_id)
+    attendees = crud.list_attendees(limit, room_id)
 
     return schemas.PaginationContainer(
         result=attendees,
@@ -184,13 +188,13 @@ def list_attendees(
 )
 def create_attendee(
     data: schemas.NewAttendee,
-    db=Depends(deps.get_db),
+    crud: controller.Crud = Depends(),
     profile: schemas.Profile = Depends(deps.profile),
 ):
     # check the room
     try:
-        crud.get_room(db, data.room_id)
-    except crud.NotFound:
+        crud.get_room(data.room_id)
+    except controller.NotFound:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Room with {data.room_id} id doesn't exist."
@@ -198,25 +202,25 @@ def create_attendee(
 
     # check if already added
     if crud.list_attendees(
-      db, limit=1, room_id=data.room_id, profile_id=profile.id,
+        limit=1, room_id=data.room_id, profile_id=profile.id,
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Profile with {profile.id} id already joined {data.room_id} room."
         )
 
-    return crud.create_attendee(db, data.room_id, profile)
+    return crud.create_attendee(data.room_id, profile)
 
 
 @router.delete("/attendees/{attendee_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_attendee(
     attendee_id: str = Path(..., title="Attendee id"),
-    db=Depends(deps.get_db),
+    crud: controller.Crud = Depends(),
     profile: schemas.Profile = Depends(deps.profile),
 ):
     try:
-        attendee = crud.get_attendee(db, attendee_id)
-    except crud.NotFound:
+        attendee = crud.get_attendee(attendee_id)
+    except controller.NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Attendee with {attendee_id} id doesn't exist."
@@ -226,7 +230,7 @@ def delete_attendee(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Attendee {attendee.id} doesn't belong to current user."
         )
-    crud.delete_attendee(db, attendee.id)
+    crud.delete_attendee(attendee.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -235,11 +239,10 @@ def delete_attendee(
     response_model=schemas.Attendee,
 )
 def get_attendee(
-    attendee_id: str = Path(..., title="Attendee id"),
-    db=Depends(deps.get_db),
+    attendee: schemas.Attendee = Depends(fetch_attendee),
     profile: schemas.Profile = Depends(deps.profile),
 ) -> schemas.Attendee:
-    return fetch_attendee(attendee_id, db)
+    return attendee
 
 
 @router.put(
@@ -247,21 +250,20 @@ def get_attendee(
     response_model=schemas.Attendee,
 )
 def hand_toggle(
-    attendee_id: str = Path(..., title="Attendee id"),
-    db=Depends(deps.get_db),
+    attendee: schemas.Attendee = Depends(fetch_attendee),
+    crud: controller.Crud = Depends(),
     profile: schemas.Profile = Depends(deps.profile),
     message: messaging.Message = Depends()
 ):
-    attendee = crud.get_attendee(db, attendee_id)
     if attendee.profile_id != profile.id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Attendee {attendee.id} doesn't belong to current user."
         )
-    attendee = crud.hand_toggle(db, attendee)
-    message.maybe_notify_instructor(attendee)
+    updated_attendee = crud.hand_toggle(attendee)
+    message.maybe_notify_instructor(updated_attendee)
 
-    return attendee
+    return updated_attendee
 
 
 @router.get(
@@ -279,13 +281,11 @@ def get_profile(
     response_model=schemas.PaginationContainer,
 )
 def list_notification_tokens(
-        profile: schemas.Profile = Depends(deps.profile),
-        db=Depends(deps.get_db),
+    profile: schemas.Profile = Depends(deps.profile),
+    crud: controller.Crud = Depends(),
 ):
     return schemas.PaginationContainer(
-        result=crud.list_notification_tokens(
-            db, profile.id
-        )
+        result=crud.list_notification_tokens(profile.id)
     )
 
 
@@ -296,11 +296,11 @@ def list_notification_tokens(
 def create_notification_token(
     data: schemas.NotificationTokenAdd,
     profile: schemas.Profile = Depends(deps.profile),
-    db=Depends(deps.get_db),
+    crud: controller.Crud = Depends(),
 ):
     try:
-        token = crud.get_notification_token(db, data.token)
-    except crud.NotFound:
+        token = crud.get_notification_token(data.token)
+    except controller.NotFound:
         pass
     else:
         if token.profile_id != profile.id:
@@ -311,7 +311,7 @@ def create_notification_token(
 
         return token
 
-    token = crud.create_notification_token(db, profile, data.token)
+    token = crud.create_notification_token(profile, data.token)
     return token
 
 
@@ -322,11 +322,11 @@ def create_notification_token(
 def delete_notification_token(
     profile: schemas.Profile = Depends(deps.profile),
     token: str = Path(..., title="Notification token string"),
-    db=Depends(deps.get_db),
+    crud: controller.Crud = Depends(),
 ):
     try:
-        token = crud.get_notification_token(db, token)
-    except crud.NotFound:
+        token = crud.get_notification_token(token)
+    except controller.NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"{token} doesn't exist."
@@ -338,7 +338,7 @@ def delete_notification_token(
             detail=f"Token doesn't belong to current user."
         )
 
-    crud.delete_notification_token(db, token.id)
+    crud.delete_notification_token(token.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -347,7 +347,7 @@ def delete_notification_token(
 )
 def test_login(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    auth=Depends(deps.get_auth),
+    auth=Depends(services.auth_transport),
 ):
     if not form_data.username.endswith('@t.org'):
         raise HTTPException(
