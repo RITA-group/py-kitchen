@@ -147,22 +147,14 @@ def next_attendee(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 def delete_room(
-    room_id: str = Path(..., title="Room id"),
-
     auth: authorization.Auth = Depends(),
+    room: schemas.Room = Depends(fetch_room),
     crud: firestore.Crud = Depends(),
 ):
-    try:
-        room = crud.get_room(room_id)
-    except firestore.NotFound:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Room with {room_id} id doesn't exist."
-        )
     if room.profile_id != auth.profile.id:
         raise_forbidden(f"Room {room.id} doesn't belong to current user.")
 
-    crud.delete_room(room_id)
+    crud.delete_room(room.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -195,40 +187,26 @@ def create_attendee(
     crud: firestore.Crud = Depends(),
 ):
     # check the room
-    try:
-        crud.get_room(data.room_id)
-    except firestore.NotFound:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Room with {data.room_id} id doesn't exist."
-        )
+    room = fetch_room(data.room_id, crud)
 
     # check if already added
     if crud.list_attendees(
-        limit=1, room_id=data.room_id, profile_id=auth.profile.id,
+        limit=1, room_id=room.id, profile_id=auth.profile.id,
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Profile with {auth.profile.id} id already joined {data.room_id} room."
+            detail=f"Profile with {auth.profile.id} id already joined {room.id} room."
         )
 
-    return crud.create_attendee(data.room_id, auth.profile)
+    return crud.create_attendee(room.id, auth.profile)
 
 
 @router.delete("/attendees/{attendee_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_attendee(
-    attendee_id: str = Path(..., title="Attendee id"),
-
     auth: authorization.Auth = Depends(),
+    attendee: schemas.Attendee = Depends(fetch_attendee),
     crud: firestore.Crud = Depends(),
 ):
-    try:
-        attendee = crud.get_attendee(attendee_id)
-    except firestore.NotFound:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Attendee with {attendee_id} id doesn't exist."
-        )
     if attendee.profile_id != auth.profile.id:
         raise_forbidden(f"Attendee {attendee.id} doesn't belong to current user.")
 

@@ -1,6 +1,6 @@
 import os
 
-version = '0.2.3'
+version = '0.2.4'
 prefix = '/api/v1'
 description = f"""
 🚀 This API allows to manage rooms, profiles, and participants.
