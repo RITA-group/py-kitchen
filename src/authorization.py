@@ -3,7 +3,7 @@ from fastapi import HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer
 from firebase_admin.auth import UserRecord, UserNotFoundError
 
-import controller
+import firestore
 import services
 
 
@@ -52,7 +52,7 @@ class Auth:
         self,
         firebase_auth=Depends(services.auth_transport),
         user: UserRecord = Depends(user_record),
-        crud: controller.Crud = Depends(),
+        crud: firestore.Crud = Depends(),
     ):
         self.profile = crud.get_or_create_profile(user)
         self._transport = firebase_auth

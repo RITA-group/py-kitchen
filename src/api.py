@@ -7,7 +7,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 import authorization
 import schemas
-import controller
+import firestore
 import messaging
 import services
 import utils
@@ -21,11 +21,11 @@ router = APIRouter()
 
 def fetch_attendee(
     attendee_id: str = Path(..., title="Attendee id"),
-    crud: controller.Crud = Depends(),
+    crud: firestore.Crud = Depends(),
 ) -> schemas.Attendee:
     try:
         attendee = crud.get_attendee(attendee_id)
-    except controller.NotFound:
+    except firestore.NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Attendee with {attendee_id} id doesn't exist."
@@ -35,11 +35,11 @@ def fetch_attendee(
 
 def fetch_room(
     room_id: str = Path(..., title="Room id"),
-    crud: controller.Crud = Depends(),
+    crud: firestore.Crud = Depends(),
 ) -> schemas.Room:
     try:
         room = crud.get_room(room_id)
-    except controller.NotFound:
+    except firestore.NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Room with {room_id} id doesn't exist."
@@ -55,7 +55,7 @@ def health_check():
 @router.get("/rooms")
 def list_rooms(
     auth: authorization.Auth = Depends(),
-    crud: controller.Crud = Depends(),
+    crud: firestore.Crud = Depends(),
 ):
     container = schemas.PaginationContainer(
         result=crud.list_rooms(),
@@ -71,7 +71,7 @@ def create_room(
     room: schemas.RoomCreate,
 
     auth: authorization.Auth = Depends(),
-    crud: controller.Crud = Depends(),
+    crud: firestore.Crud = Depends(),
 ):
     return crud.create_room(room, auth.profile)
 
@@ -98,23 +98,23 @@ def next_attendee(
         title='Force a specific attendee.'
     ),
     room: schemas.Room = Depends(fetch_room),
-    order: controller.OrderTypes = Query(
-        controller.OrderTypes.least_answers,
+    order: firestore.OrderTypes = Query(
+        firestore.OrderTypes.least_answers,
         title='Algorithm used to pick the next attendee.'
     ),
 
     auth: authorization.Auth = Depends(),
-    crud: controller.Crud = Depends(),
-    picker: controller.NextAttendee = Depends(),
+    crud: firestore.Crud = Depends(),
+    picker: firestore.NextAttendee = Depends(),
 ):
     # Only owner can call next attendee
     if room.profile_id != auth.profile.id:
         raise_forbidden(f"Room {room.id} doesn't belong to current user.")
 
-    if order == controller.OrderTypes.specific_attendee and not attendee_id:
+    if order == firestore.OrderTypes.specific_attendee and not attendee_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"If {controller.OrderTypes.specific_attendee} is selected, "
+            detail=f"If {firestore.OrderTypes.specific_attendee} is selected, "
                    f"attendee_id must be provided."
         )
 
@@ -128,11 +128,11 @@ def next_attendee(
                 detail=f"Attendee with {attendee_id} is not in the room."
             )
         # Assume the specific attendee is needed since id was provided
-        picker.order = controller.OrderTypes.specific_attendee
+        picker.order = firestore.OrderTypes.specific_attendee
 
     try:
         next_in_queue = picker.next_attendee()
-    except controller.NotFound:
+    except firestore.NotFound:
         return None
     finally:
         # even if there is no next attendee we stop all previous answers
@@ -150,11 +150,11 @@ def delete_room(
     room_id: str = Path(..., title="Room id"),
 
     auth: authorization.Auth = Depends(),
-    crud: controller.Crud = Depends(),
+    crud: firestore.Crud = Depends(),
 ):
     try:
         room = crud.get_room(room_id)
-    except controller.NotFound:
+    except firestore.NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Room with {room_id} id doesn't exist."
@@ -175,7 +175,7 @@ def list_attendees(
     limit: int = Query(50, title='Number of results per request'),
 
     auth: authorization.Auth = Depends(),
-    crud: controller.Crud = Depends(),
+    crud: firestore.Crud = Depends(),
 ):
     attendees = crud.list_attendees(limit, room_id)
 
@@ -192,12 +192,12 @@ def create_attendee(
     data: schemas.NewAttendee,
 
     auth: authorization.Auth = Depends(),
-    crud: controller.Crud = Depends(),
+    crud: firestore.Crud = Depends(),
 ):
     # check the room
     try:
         crud.get_room(data.room_id)
-    except controller.NotFound:
+    except firestore.NotFound:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Room with {data.room_id} id doesn't exist."
@@ -220,11 +220,11 @@ def delete_attendee(
     attendee_id: str = Path(..., title="Attendee id"),
 
     auth: authorization.Auth = Depends(),
-    crud: controller.Crud = Depends(),
+    crud: firestore.Crud = Depends(),
 ):
     try:
         attendee = crud.get_attendee(attendee_id)
-    except controller.NotFound:
+    except firestore.NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Attendee with {attendee_id} id doesn't exist."
@@ -254,7 +254,7 @@ def get_attendee(
 def hand_toggle(
     auth: authorization.Auth = Depends(),
     attendee: schemas.Attendee = Depends(fetch_attendee),
-    crud: controller.Crud = Depends(),
+    crud: firestore.Crud = Depends(),
     message: messaging.Message = Depends()
 ):
     if attendee.profile_id != auth.profile.id:
@@ -282,7 +282,7 @@ def get_profile(
 )
 def list_notification_tokens(
     auth: authorization.Auth = Depends(),
-    crud: controller.Crud = Depends(),
+    crud: firestore.Crud = Depends(),
 ):
     return schemas.PaginationContainer(
         result=crud.list_notification_tokens(auth.profile.id)
@@ -297,11 +297,11 @@ def create_notification_token(
     data: schemas.NotificationTokenAdd,
 
     auth: authorization.Auth = Depends(),
-    crud: controller.Crud = Depends(),
+    crud: firestore.Crud = Depends(),
 ):
     try:
         token = crud.get_notification_token(data.token)
-    except controller.NotFound:
+    except firestore.NotFound:
         pass
     else:
         if token.profile_id != auth.profile.id:
@@ -321,11 +321,11 @@ def delete_notification_token(
     token: str = Path(..., title="Notification token string"),
 
     auth: authorization.Auth = Depends(),
-    crud: controller.Crud = Depends(),
+    crud: firestore.Crud = Depends(),
 ):
     try:
         token = crud.get_notification_token(token)
-    except controller.NotFound:
+    except firestore.NotFound:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"{token} doesn't exist."

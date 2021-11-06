@@ -1,7 +1,7 @@
 from fastapi import Depends
 from firebase_admin import messaging as messaging_transport
 
-import controller
+import firestore
 import services
 import schemas
 
@@ -9,7 +9,7 @@ import schemas
 class Message:
     def __init__(
         self,
-        crud: controller.Crud = Depends(),
+        crud: firestore.Crud = Depends(),
         transport: messaging_transport = Depends(services.messaging_transport)
     ):
         self.crud = crud
