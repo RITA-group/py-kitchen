@@ -1,6 +1,6 @@
 import logging
 from fastapi import HTTPException, status, Depends
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import OAuth2PasswordBearer, OAuth2
 from firebase_admin.auth import UserRecord, UserNotFoundError
 
 import firestore
@@ -11,9 +11,36 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 logger = logging.getLogger(__name__)
 
 
+def auth_header(
+    header_body: str = Depends(OAuth2())
+):
+    try:
+        scheme, token = header_body.split(' ')
+    except Exception as e:
+        msg = f"{repr(e)}. Expect: 'Bearer longtoken', Got: '{header_body}'"
+        logger.warning(msg)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=msg,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not header_body or scheme.lower() != "bearer":
+        msg = f"Invalid scheme. Expect: 'Bearer longtoken', Got: '{header_body}'"
+        logger.warning(msg)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=msg,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return token
+
+
 def uid_from_authorization_token(
     auth=Depends(services.auth_transport),
-    token: str = Depends(oauth2_scheme),
+    form: str = Depends(oauth2_scheme),
+    token: str = Depends(auth_header),
 ) -> str:
     try:
         decoded_token = auth.verify_id_token(token)
