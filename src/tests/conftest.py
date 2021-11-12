@@ -5,7 +5,7 @@ from firebase_admin import auth, messaging
 from mockfirestore import MockFirestore
 from unittest.mock import MagicMock
 
-from src import factory, schemas, services
+from src import factory, schemas, services, config
 
 
 @pytest.fixture
@@ -75,17 +75,26 @@ def instructor_two_record() -> auth.UserRecord:
     })
 
 
+@pytest.fixture(scope="session")
+def settings():
+    return config.Settings()
+
+
 @pytest.fixture
-def app(firestore, messaging_transport, auth_transport):
+def app(
+    firestore, messaging_transport,
+    auth_transport, settings,
+):
     firestore_module = MagicMock()
     firestore_module.client.return_value = firestore
 
-    api_app = factory.build_app()
+    api_app = factory.build_app(settings)
     services.connect(
         api_app,
         firestore_module=firestore_module,
         auth_module=auth_transport,
         messaging_module=messaging_transport,
+        app_settings=settings,
     )
     return api_app
 

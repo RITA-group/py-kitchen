@@ -11,6 +11,7 @@ services:
       - ./src:/code
     environment:
       - API_KEY=${API_KEY}
+      - JSON_LOGGING=true
     entrypoint: /bin/bash
     command: -c "python3 server_dev.py"
     ports:

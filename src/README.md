@@ -1,11 +1,5 @@
-import os
+🚀 This API allows managing rooms, profiles, and participants.
 
-version = '0.2.5'
-prefix = '/api/v1'
-description = f"""
-🚀 This API allows to manage rooms, profiles, and participants.
-
-Another version of the [docs]({prefix}/redoc).
 
 ## Initial release
 * **Create and delete rooms**.
@@ -20,14 +14,3 @@ It can be enabled when we get Profile endpoint working with auth.
 
 Checkout this [example](https://cloud.google.com/endpoints/docs/openapi/authenticating-users-firebase#making_an_authenicated_call_to_an_endpoints_api)
 of how to form the auth header.
-"""
-
-test_uid = 'testtesttest'
-
-origins = [
-    "https://rita-iu.web.app/",
-    "http://localhost",
-    "http://localhost:8100",
-]
-
-api_key = os.environ.get('API_KEY', 'test_api_key')

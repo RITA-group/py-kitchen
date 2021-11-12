@@ -2,13 +2,15 @@ import logging
 import json
 import requests
 from fastapi import status, HTTPException
-import settings
+import config
 
 
 logger = logging.getLogger(__name__)
 
 
-def get_user_token_from(custom_token) -> dict:
+def get_user_token_from(
+    custom_token,
+) -> dict:
     """Return a Firebase user ID token from custom token.
     This is based on:
     https://github.com/jewang/firebase-id-token-generator-python/blob/master/firebase_token_generator.py
@@ -24,7 +26,7 @@ def get_user_token_from(custom_token) -> dict:
         'token': custom_token.decode('utf-8'),
         'returnSecureToken': True
     }
-
+    settings = config.get_settings()
     url = "https://www.googleapis.com/identitytoolkit/v3/relyingparty" \
           "/verifyCustomToken?key={}".format(settings.api_key)
 
