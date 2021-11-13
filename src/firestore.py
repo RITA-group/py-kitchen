@@ -1,7 +1,7 @@
 import fastapi
 from enum import Enum
 from fastapi import Depends
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from firebase_admin.auth import UserRecord
 from google.cloud.firestore import Client as FirestoreDb
@@ -21,6 +21,11 @@ class AlreadyExists(Exception):
 
 class NoNextAttendee(Exception):
     pass
+
+
+class RoomRelationTypes(str, Enum):
+    joined: str = "joined"
+    created: str = "created"
 
 
 class Crud:
@@ -48,9 +53,24 @@ class Crud:
             snapshot = ref.get()
         return schemas.Profile.from_snapshot(snapshot)
 
-    def list_rooms(self):
-        query = self.db.collection('rooms').order_by('created').stream()
-        rooms = [schemas.Room.from_snapshot(doc) for doc in query]
+    def list_rooms(
+        self,
+        profile: Optional[schemas.Profile] = None,
+    ) -> List[schemas.Room]:
+        query = self.db.collection('rooms').order_by('created')
+        if profile:
+            query = query.where('profile_id', '==', profile.id)
+
+        rooms = [schemas.Room.from_snapshot(doc) for doc in query.stream()]
+        return rooms
+
+    def fetch_rooms(
+        self,
+        ids: List[str],
+    ) -> List[schemas.Room]:
+        query = self.db.collection('rooms')
+        docs = [query.document(i).get() for i in ids]
+        rooms = [schemas.Room.from_snapshot(doc) for doc in docs if doc.exists]
         return rooms
 
     def create_room(

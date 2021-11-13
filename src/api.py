@@ -52,13 +52,30 @@ def health_check():
     return {"status": "ok"}
 
 
-@router.get("/rooms")
+@router.get(
+    "/rooms",
+    response_model=schemas.PaginationContainer,
+)
 def list_rooms(
+    relation: Optional[firestore.RoomRelationTypes] = Query(
+        None,
+        title='Filter based on profile relation to the room',
+    ),
     auth: authorization.Auth = Depends(),
     crud: firestore.Crud = Depends(),
 ):
+    if relation == firestore.RoomRelationTypes.created:
+        rooms = crud.list_rooms(auth.profile)
+    elif relation == firestore.RoomRelationTypes.joined:
+        attendees = crud.list_attendees(
+            limit=100, profile_id=auth.profile.id
+        )
+        rooms = crud.fetch_rooms([a.room_id for a in attendees])
+    else:
+        rooms = crud.list_rooms()
+
     container = schemas.PaginationContainer(
-        result=crud.list_rooms(),
+        result=rooms,
     )
     return container
 
