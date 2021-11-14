@@ -14,8 +14,8 @@ description = text.format(
 )
 
 origins = [
-    "https://rita-iu.web.app/",
-    "https://rita-app.netlify.app/",
+    "https://rita-iu.web.app",
+    "https://rita-app.netlify.app",
     "http://localhost",
     "http://localhost:8100",
 ]
