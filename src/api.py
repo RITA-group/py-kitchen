@@ -10,6 +10,7 @@ import schemas
 import firestore
 import messaging
 import services
+import realtime_db
 import utils
 
 from utils import raise_forbidden
@@ -89,8 +90,11 @@ def create_room(
 
     auth: authorization.Auth = Depends(),
     crud: firestore.Crud = Depends(),
+    realtime: realtime_db.Crud = Depends(),
 ):
-    return crud.create_room(room, auth.profile)
+    new_room = crud.create_room(room, auth.profile)
+    realtime.set_room(new_room)
+    return new_room
 
 
 @router.get(
@@ -103,6 +107,30 @@ def get_room(
     auth: authorization.Auth = Depends(),
 ):
     return room
+
+
+@router.get(
+    "/realtime_room_format/{room_id}",
+    response_model=schemas.RealtimeRoom,
+)
+def realtime_room_format(
+    auth: authorization.Auth = Depends(),
+    room: schemas.Room = Depends(fetch_room),
+    realtime: realtime_db.Crud = Depends(),
+):
+    return realtime.get_room(room)
+
+
+@router.post(
+    "/realtime_room_update/{room_id}",
+    response_model=schemas.RealtimeRoom,
+)
+def realtime_room_set(
+    auth: authorization.Auth = Depends(),
+    room: schemas.Room = Depends(fetch_room),
+    realtime: realtime_db.Crud = Depends(),
+):
+    return realtime.set_room(room)
 
 
 @router.get(
@@ -122,6 +150,7 @@ def next_attendee(
 
     auth: authorization.Auth = Depends(),
     crud: firestore.Crud = Depends(),
+    realtime: realtime_db.Crud = Depends(),
     picker: firestore.NextAttendee = Depends(),
 ):
     # Only owner can call next attendee
@@ -147,15 +176,18 @@ def next_attendee(
         # Assume the specific attendee is needed since id was provided
         picker.order = firestore.OrderTypes.specific_attendee
 
-    try:
-        next_in_queue = picker.next_attendee()
-    except firestore.NotFound:
+    next_in_queue = picker.next_attendee()
+    # even if there is no next attendee we stop all previous answers
+    crud.stop_all_answers(room.id)
+    # TODO: optimize this
+    realtime.set_answering(room, next_in_queue)
+    realtime.set_room_queue(room)
+    if not next_in_queue:
         return None
-    finally:
-        # even if there is no next attendee we stop all previous answers
-        crud.stop_all_answers(room.id)
 
     crud.start_answer(next_in_queue.id)
+    realtime.set_answering(room, next_in_queue)
+    realtime.set_room_queue(room)
     return crud.get_attendee(next_in_queue.id)
 
 
@@ -167,11 +199,15 @@ def delete_room(
     auth: authorization.Auth = Depends(),
     room: schemas.Room = Depends(fetch_room),
     crud: firestore.Crud = Depends(),
+    realtime: realtime_db.Crud = Depends(),
 ):
     if room.profile_id != auth.profile.id:
         raise_forbidden(f"Room {room.id} doesn't belong to current user.")
 
+    room_id = room.id
     crud.delete_room(room.id)
+    realtime.delete_room(room_id)
+
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -202,6 +238,7 @@ def create_attendee(
 
     auth: authorization.Auth = Depends(),
     crud: firestore.Crud = Depends(),
+    realtime: realtime_db.Crud = Depends(),
 ):
     # check the room
     room = fetch_room(data.room_id, crud)
@@ -214,8 +251,10 @@ def create_attendee(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Profile with {auth.profile.id} id already joined {room.id} room."
         )
+    new_attendee = crud.create_attendee(room.id, auth.profile)
+    realtime.set_room_attendees(room)
 
-    return crud.create_attendee(room.id, auth.profile)
+    return new_attendee
 
 
 @router.delete("/attendees/{attendee_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -223,9 +262,17 @@ def delete_attendee(
     auth: authorization.Auth = Depends(),
     attendee: schemas.Attendee = Depends(fetch_attendee),
     crud: firestore.Crud = Depends(),
+    realtime: realtime_db.Crud = Depends(),
 ):
     if attendee.profile_id != auth.profile.id:
         raise_forbidden(f"Attendee {attendee.id} doesn't belong to current user.")
+
+    try:
+        room = crud.get_room(attendee.room_id)
+    except firestore.NotFound:
+        pass
+    else:
+        realtime.set_room_attendees(room)
 
     crud.delete_attendee(attendee.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -250,12 +297,14 @@ def hand_toggle(
     auth: authorization.Auth = Depends(),
     attendee: schemas.Attendee = Depends(fetch_attendee),
     crud: firestore.Crud = Depends(),
-    message: messaging.Message = Depends()
+    message: messaging.Message = Depends(),
+    realtime: realtime_db.Crud = Depends(),
 ):
     if attendee.profile_id != auth.profile.id:
         raise_forbidden(f"Attendee {attendee.id} doesn't belong to current user.")
-
+    room = fetch_room(attendee.room_id, crud)
     updated_attendee = crud.hand_toggle(attendee)
+    realtime.set_room_queue(room)
     message.maybe_notify_instructor(updated_attendee)
 
     return updated_attendee

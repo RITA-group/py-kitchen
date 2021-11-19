@@ -1,7 +1,8 @@
 from firebase_admin import initialize_app as init_firebase
+from firebase_admin import credentials
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import json_logging
+#import json_logging
 
 import services
 import config
@@ -37,10 +38,16 @@ def build_app(settings: config.Settings):
 def prod_app():
     settings = config.get_settings()
     app = build_app(settings)
-    json_logging.init_fastapi(enable_json=settings.json_logging)
-    json_logging.init_request_instrument(
-        app, exclude_url_patterns=[r'^/exclude_from_request_instrumentation']
+    #json_logging.init_fastapi(enable_json=settings.json_logging)
+    #json_logging.init_request_instrument(
+    #    app, exclude_url_patterns=[r'^/exclude_from_request_instrumentation']
+    #)
+    cred = credentials.Certificate('/keys/service_account_key.json')
+    init_firebase(
+        cred,
+        {
+            'databaseURL': 'https://rita-iu-default-rtdb.europe-west1.firebasedatabase.app/',
+        }
     )
-    init_firebase()
     services.connect(app)
     return app

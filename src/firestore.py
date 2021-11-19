@@ -94,12 +94,19 @@ class Crud:
 
     def delete_room(self, room_id: str) -> None:
         self.db.collection('rooms').document(room_id).delete()
+        # TODO: use transaction and batch
+        query = self.db.collection('attendees').where(
+            'room_id', '==', room_id
+        )
+        for a in query.stream():
+            a.reference.delete()
 
     def list_attendees(
         self,
         limit: int,
         room_id: Optional[str] = None,
         profile_id: Optional[str] = None,
+        descending: bool = True
     ) -> list[schemas.Attendee]:
         query = self.db.collection('attendees')
         if room_id:
@@ -112,7 +119,7 @@ class Crud:
             )
         query = query.order_by(
             'created',
-            direction=Query.DESCENDING,
+            direction=descending and Query.DESCENDING or Query.ASCENDING,
         ).limit(limit)
         docs = list(query.stream())
 
@@ -145,6 +152,16 @@ class Crud:
         if not doc.exists:
             raise NotFound()
         return schemas.Attendee.from_snapshot(doc)
+
+    def get_currently_answering(self) -> Optional[schemas.Attendee]:
+        query = self.db.collection('attendees').where(
+            'answering', '==', True
+        ).limit(1)
+        doc = next(query.stream(), None)
+        if doc and doc.exists:
+            return schemas.Attendee.from_snapshot(doc)
+        else:
+            return None
 
     def stop_all_answers(self, room_id: str) -> None:
         query = self.db.collection('attendees').where(
@@ -274,7 +291,7 @@ class NextAttendee:
         func = getattr(self, f'_{self.order.name}')
         doc = func()
         if not doc:
-            raise NotFound
+            return None
         return schemas.Attendee.from_snapshot(doc)
 
     def _specific_attendee(self):

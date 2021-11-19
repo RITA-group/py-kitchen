@@ -1,5 +1,5 @@
 from fastapi import Request, FastAPI
-from firebase_admin import auth, firestore, messaging
+from firebase_admin import auth, firestore, messaging, db
 import config
 
 
@@ -13,6 +13,10 @@ def auth_transport(request: Request):
 
 def firestore_transport(request: Request):
     return request.app.firestore_transport
+
+
+def realtime_db_transport(request: Request):
+    return request.app.realtime_db_transport
 
 
 def settings(request: Request):
@@ -29,4 +33,5 @@ def connect(
     app.auth_transport = auth_module
     app.firestore_transport = firestore_module.client()
     app.messaging_transport = messaging_module
+    app.realtime_db_transport = db
     app.settings = app_settings

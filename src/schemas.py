@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator, ValidationError
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 from google.cloud.firestore import DocumentSnapshot
@@ -87,3 +87,11 @@ class NotificationToken(FirebaseModel):
     created: datetime
     message_count: int = 0
     last_message_timestamp: Optional[datetime]
+
+
+class RealtimeRoom(BaseModel):
+    profile_id: str
+    attendees: Optional[list[Attendee]] = None
+    queue: Optional[list[Attendee]] = None
+    answering: Optional[Attendee] = None
+
