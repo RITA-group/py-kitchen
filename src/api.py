@@ -244,12 +244,12 @@ def create_attendee(
     room = fetch_room(data.room_id, crud)
 
     # check if already added
-    if crud.list_attendees(
+    if original_attendee := crud.list_attendees(
         limit=1, room_id=room.id, profile_id=auth.profile.id,
     ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Profile with {auth.profile.id} id already joined {room.id} room."
+            detail=f"attendees/{original_attendee} already joined rooms/{room.id} as profile/{auth.profile.id}"
         )
     new_attendee = crud.create_attendee(room.id, auth.profile)
     realtime.set_room_attendees(room)

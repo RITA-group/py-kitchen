@@ -94,4 +94,3 @@ class RealtimeRoom(BaseModel):
     attendees: Optional[list[Attendee]] = None
     queue: Optional[list[Attendee]] = None
     answering: Optional[Attendee] = None
-
