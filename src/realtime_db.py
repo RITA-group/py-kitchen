@@ -54,16 +54,26 @@ class Crud:
     def set_room_attendees(self, room: schemas.Room):
         ref = self.realtime.reference(f'rooms/{room.id}/attendees')
         attendees = self._get_attendees(room.id)
-        ref.set(self._parse(attendees))
+        attendees = self._parse(attendees)
+        if attendees:
+            ref.set(attendees)
 
     def set_room_queue(self, room: schemas.Room):
         ref = self.realtime.reference(f'rooms/{room.id}/queue')
         attendees = self._get_in_queue(room.id)
-        ref.set(self._parse(attendees))
+        attendees = self._parse(attendees)
+        if attendees:
+            ref.set(attendees)
 
     def set_room(self, room: schemas.Room) -> schemas.RealtimeRoom:
         ref = self.realtime.reference('rooms')
-        ref.set({room.id: {'profile_id': room.profile_id}})
+        ref.update({
+            room.id:
+                {
+                    'profile_id': room.profile_id,
+                    'name': room.name,
+                }
+        })
         self.set_room_attendees(room)
         self.set_room_queue(room)
 
@@ -82,4 +92,4 @@ class Crud:
         if not attendee:
             ref.delete()
         else:
-            ref.set(self._to_dict(attendee))
+            ref.update(self._to_dict(attendee))

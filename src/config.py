@@ -24,7 +24,7 @@ origins = [
 class Settings(BaseSettings):
     json_logging: bool = False
     api_key: str = 'test_api_key'
-    version: str = '0.3.1'
+    version: str = '0.3.2'
 
     # application settings
     prefix: str = prefix

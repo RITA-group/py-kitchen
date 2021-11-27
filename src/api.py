@@ -125,12 +125,26 @@ def realtime_room_format(
     "/realtime_room_update/{room_id}",
     response_model=schemas.RealtimeRoom,
 )
-def realtime_room_set(
+def realtime_room_update(
     auth: authorization.Auth = Depends(),
     room: schemas.Room = Depends(fetch_room),
     realtime: realtime_db.Crud = Depends(),
 ):
     return realtime.set_room(room)
+#
+#
+#@router.post(
+#    "/realtime_room_update",
+#)
+#def all_realtime_room_update(
+#    auth: authorization.Auth = Depends(),
+#    crud: firestore.Crud = Depends(),
+#    realtime: realtime_db.Crud = Depends(),
+#):
+#    rooms = crud.list_rooms()
+#    for room in rooms:
+#        realtime.set_room(room)
+#    return {'ok': True}
 
 
 @router.get(
